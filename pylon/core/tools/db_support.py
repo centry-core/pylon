@@ -342,7 +342,11 @@ class local_session:  # pylint: disable=C0103
     """ Local session context manager """
 
     def __enter__(self):
+        from tools import context  # pylint: disable=E0401,C0411,C0415
+        #
         create_local_session()
+        #
+        return context.local.db_session
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         close_local_session()
