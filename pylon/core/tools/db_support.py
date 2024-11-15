@@ -338,6 +338,16 @@ def close_local_session():
         session.close()
 
 
+class local_session:  # pylint: disable=C0103
+    """ Local session context manager """
+
+    def __enter__(self):
+        create_local_session()
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        close_local_session()
+
+
 #
 # Tools: module entities
 #
