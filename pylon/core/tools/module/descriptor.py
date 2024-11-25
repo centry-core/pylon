@@ -493,7 +493,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
     def init_db(self):
         """ Load and initialize DB support """
         # Local imports
-        # from tools import this  # pylint: disable=E0401,C0415
+        from tools import this  # pylint: disable=E0401,C0415
         from pylon.framework.db import db_migrations  # pylint: disable=C0415
         # Step: load models
         module_pkg = self.loader.module_name
@@ -520,14 +520,21 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                     )
                     continue
         # Step: create entities
-        # module_this = this.for_module(module_pkg)
-        # db_namespace_helper = module_this.spaces.get("db_namespace_helper", None)
-        # if db_namespace_helper is not None:
-        #     db_namespaces = db_namespace_helper.get_namespaces()
+        module_this = this.for_module(module_pkg)
+        module_this.db.metadata.create_all(bind=self.context.db.engine)
+        #
+        db_namespace_helper = module_this.spaces.get("db_namespace_helper", None)
+        if db_namespace_helper is not None:
+            db_namespaces = db_namespace_helper.get_namespaces()
+            #
+            for db_namespace_name in module_this.db.ns_used:
+                db_namespace = db_namespaces[db_namespace_name]
+                db_namespace.metadata.create_all(bind=self.context.db.engine)
         # Step: run migrations
         if self.loader.has_directory("db/migrations"):
             db_migrations.run_db_migrations(self.module, self.context.db.url)
-        # Step: run automigrations
+        # TODO: Step: run automigrations
+        # TODO: Schema support (e.g. module.db.schema.models)
 
     def init_all(  # pylint: disable=R0913
             self,

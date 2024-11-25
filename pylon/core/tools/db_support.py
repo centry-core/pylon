@@ -22,6 +22,7 @@
 
 import os
 import time
+import threading
 import importlib
 
 import sqlalchemy  # pylint: disable=E0401
@@ -363,16 +364,26 @@ class DbNamespaceHelper:  # pylint: disable=R0903
     def __init__(self, context):
         self.__context = context
         self.__namespaces = {}
+        self.__lock = threading.Lock()
 
     def __getattr__(self, name):
-        if name not in self.__namespaces:
-            self.__namespaces[name] = make_module_entities(self.__context)
-        #
-        return self.__namespaces[name]
+        with self.__lock:
+            if name not in self.__namespaces:
+                self.__namespaces[name] = make_module_entities(self.__context)
+            #
+            try:
+                from tools import this  # pylint: disable=E0401,C0411,C0415
+                #
+                this.db.ns_used.add(name)
+            except:  # pylint: disable=W0702
+                pass
+            #
+            return self.__namespaces[name]
 
     def get_namespaces(self):
         """ Get present namespaces """
-        return self.__namespaces
+        with self.__lock:
+            return self.__namespaces
 
 
 def make_module_entities(context, spaces=None):
@@ -389,5 +400,6 @@ def make_module_entities(context, spaces=None):
             spaces["db_namespace_helper"] = DbNamespaceHelper(context)
         #
         result.ns = spaces["db_namespace_helper"]
+        result.ns_used = set()
     #
     return result
