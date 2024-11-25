@@ -292,17 +292,24 @@ def create_socketio_instance(context):  # pylint: disable=R0914,R0912,R0915
         except:  # pylint: disable=W0702
             log.exception("Cannot make RedisManager instance, SocketIO is in standalone mode")
     #
+    sio_kwargs = {}
+    for arg_item in ["transports"]:
+        if arg_item in socketio_config:
+            sio_kwargs[arg_item] = socketio_config[arg_item]
+    #
     if not context.debug and context.web_runtime == "gevent":
         sio = SIOPatchedServer(
             async_mode="gevent",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+            **sio_kwargs,
         )
     elif context.web_runtime == "uvicorn":
         context.sio_async = SIOPatchedAsyncServer(
             async_mode="asgi",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+            **sio_kwargs,
         )
         sio = SIOAsyncProxy(context)
     elif context.web_runtime == "hypercorn":
@@ -310,6 +317,7 @@ def create_socketio_instance(context):  # pylint: disable=R0914,R0912,R0915
             async_mode="asgi",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+            **sio_kwargs,
         )
         sio = SIOAsyncProxy(context)
     elif context.web_runtime == "waitress":
@@ -318,12 +326,14 @@ def create_socketio_instance(context):  # pylint: disable=R0914,R0912,R0915
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+            **sio_kwargs,
         )
     else:
         sio = SIOPatchedServer(
             async_mode="threading",
             client_manager=client_manager,
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
+            **sio_kwargs,
         )
     #
     return sio
