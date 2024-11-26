@@ -61,6 +61,8 @@ class ModuleThis:  # pylint: disable=R0903
         self.spaces = spaces
         self.module_name = module_name
         #
+        self.descriptor = self.context.module_manager.descriptors[self.module_name]
+        #
         self.data = Context()
         #
         self.db = db_support.make_module_entities(self.context, self.spaces)
