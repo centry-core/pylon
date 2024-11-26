@@ -2,6 +2,8 @@
 
 : "${PYLON_INIT:=dumb-init}"
 
+export PYLON_INIT
+
 if [ "$PYLON_INIT" = "pylon" ]; then
   exec python -m pylon.main
 elif [ "$PYLON_INIT" = "dumb-init" ]; then
