@@ -38,7 +38,9 @@ def kill_remaining_processes():
     """ Send SIGKILL to all other processes """
     try:
         current_pid = os.getpid()
-        running_pids = psutil.pids().sort(reverse=True)
+        #
+        running_pids = psutil.pids()
+        running_pids.sort(reverse=True)
         #
         for pid in running_pids:
             if pid == current_pid:
