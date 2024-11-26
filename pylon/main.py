@@ -72,6 +72,7 @@ from pylon.core.tools import traefik
 from pylon.core.tools import exposure
 
 from pylon.core.tools.signal import signal_sigterm
+from pylon.core.tools.signal import kill_remaining_processes
 from pylon.core.tools.signal import ZombieReaper
 from pylon.core.tools.context import Context
 
@@ -90,6 +91,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Save debug status
     context.debug = CORE_DEVELOPMENT_MODE
     context.web_runtime = CORE_WEB_RUNTIME
+    # Save runime init
+    context.runtime_init = os.environ.get("PYLON_INIT", "unknown")
     # Load settings from seed
     log.info("Loading and parsing settings")
     context.settings = seed.load_settings()
@@ -193,6 +196,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
         context.module_manager.deinit_modules()
         # De-initialize DB support
         db_support.deinit(context)
+    # Kill remaining processes to avoid keeping the container running on update
+    if context.settings.get("system", {}).get("kill_remaining_processes", True) and \
+            context.runtime_init in ["pylon", "dumb-init"]:
+        kill_remaining_processes()
     # Exit
     log.info("Exiting")
 

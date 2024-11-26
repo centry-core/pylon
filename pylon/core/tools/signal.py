@@ -24,12 +24,35 @@ import os
 import time
 import threading
 
+import psutil  # pylint: disable=E0401
+
 from pylon.core.tools import log
 
 
 def signal_sigterm(signal_num, stack_frame):
     """ SIGTERM signal handler: for clean and fast docker stop/restart """
     raise SystemExit
+
+
+def kill_remaining_processes():
+    """ Send SIGKILL to all other processes """
+    try:
+        current_pid = os.getpid()
+        running_pids = psutil.pids().sort(reverse=True)
+        #
+        for pid in running_pids:
+            if pid == current_pid:
+                continue
+            #
+            log.info("Killing remaining process: %s", pid)
+            #
+            try:
+                process = psutil.Process(pid=pid)
+                process.kill()
+            except:  # pylint: disable=W0702
+                pass
+    except:  # pylint: disable=W0702
+        pass
 
 
 class ZombieReaper(threading.Thread):
