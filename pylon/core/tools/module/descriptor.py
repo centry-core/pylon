@@ -497,6 +497,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         from pylon.framework.db import db_migrations  # pylint: disable=C0415
         # Step: load models
         module_pkg = self.loader.module_name
+        module_name = module_pkg.split(".")[1]
         #
         if self.loader.has_directory("db/models"):
             for model_resource in importlib.resources.contents(
@@ -520,7 +521,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                     )
                     continue
         # Step: create entities
-        module_this = this.for_module(module_pkg)
+        module_this = this.for_module(module_name)
         module_this.db.metadata.create_all(bind=self.context.db.engine)
         #
         db_namespace_helper = module_this.spaces.get("db_namespace_helper", None)
