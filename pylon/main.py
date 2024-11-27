@@ -199,7 +199,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Kill remaining processes to avoid keeping the container running on update
     if context.settings.get("system", {}).get("kill_remaining_processes", True) and \
             context.runtime_init in ["pylon", "dumb-init"]:
-        kill_remaining_processes()
+        kill_remaining_processes(context)
     # Exit
     log.info("Exiting")
 

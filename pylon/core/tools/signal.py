@@ -34,7 +34,7 @@ def signal_sigterm(signal_num, stack_frame):
     raise SystemExit
 
 
-def kill_remaining_processes():
+def kill_remaining_processes(context):
     """ Send SIGKILL to all other processes """
     try:
         current_pid = os.getpid()
@@ -44,7 +44,10 @@ def kill_remaining_processes():
         #
         for pid in running_pids:
             if pid == current_pid:
-                continue
+                continue  # Skip pylon itself
+            #
+            if pid == 1 and context.runtime_init == "dumb-init":
+                continue  # Skip init
             #
             log.info("Killing remaining process: %s", pid)
             #
