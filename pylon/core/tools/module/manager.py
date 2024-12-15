@@ -36,6 +36,7 @@ from pylon.core.tools import (
     process,
     dependency,
     db_support,
+    ssl,
 )
 
 from .proxy import (
@@ -528,6 +529,15 @@ class ModuleManager:  # pylint: disable=R0902
         for const in constraint_paths:
             c_args.append("-c")
             c_args.append(const)
+        #
+        if ssl.custom_ca_bundle is not None:
+            c_args.append("--cert")
+            c_args.append(ssl.custom_ca_bundle)
+        #
+        trusted_hosts = self.settings["requirements"].get("trusted_hosts", [])
+        for trusted_host in trusted_hosts:
+            c_args.append("--trusted-host")
+            c_args.append(trusted_host)
         #
         return process.run_command(
             [
