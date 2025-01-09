@@ -18,6 +18,7 @@
 """ SourceProvider """
 
 import io
+import os
 import zipfile
 import tempfile
 
@@ -36,6 +37,8 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
         self.username = self.settings.get("username", None)
         self.password = self.settings.get("password", None)
         self.verify = self.settings.get("verify", True)
+        #
+        self.use_inner_dir = self.settings.get("use_inner_dir", True)
 
     def init(self):
         """ Initialize provider """
@@ -64,6 +67,9 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
         #
         with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
             zip_file.extractall(target_path)
+        #
+        if self.use_inner_dir:
+            return os.path.join(target_path, os.listdir(target_path)[0])
         #
         return target_path
 

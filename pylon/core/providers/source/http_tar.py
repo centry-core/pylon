@@ -18,6 +18,7 @@
 """ SourceProvider """
 
 import io
+import os
 import tarfile
 import tempfile
 
@@ -38,6 +39,7 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
         self.verify = self.settings.get("verify", True)
         #
         self.tar_mode = self.settings.get("tar_mode", "r")
+        self.use_inner_dir = self.settings.get("use_inner_dir", True)
 
     def init(self):
         """ Initialize provider """
@@ -66,6 +68,9 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
         #
         with tarfile.open(mode=self.tar_mode, fileobj=io.BytesIO(response.content)) as tar_file:
             tar_file.extractall(target_path)
+        #
+        if self.use_inner_dir:
+            return os.path.join(target_path, os.listdir(target_path)[0])
         #
         return target_path
 
