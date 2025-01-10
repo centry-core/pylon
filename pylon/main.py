@@ -59,6 +59,7 @@ import flask_restful  # pylint: disable=E0401
 from pylon.core.tools import log
 from pylon.core.tools import log_support
 from pylon.core.tools import db_support
+from pylon.core.tools import config
 from pylon.core.tools import module
 from pylon.core.tools import event
 from pylon.core.tools import seed
@@ -71,6 +72,7 @@ from pylon.core.tools import session
 from pylon.core.tools import traefik
 from pylon.core.tools import exposure
 
+from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.signal import signal_sigterm
 from pylon.core.tools.signal import kill_remaining_processes
 from pylon.core.tools.signal import ZombieReaper
@@ -99,6 +101,24 @@ def main():  # pylint: disable=R0912,R0914,R0915
     if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
+    # Basic init
+    toolkit.basic_init(context)
+    db_support.basic_init(context)
+    # Tunable pylon settings
+    tunable_settings_data = config.tunable_get("pylon_settings", None)
+    if tunable_settings_data is not None:
+        log.info("Loading and parsing tunable settings")
+        tunable_settings = seed.parse_settings(tunable_settings_data)
+        if tunable_settings:
+            tunable_settings_mode = tunable_settings.get("pylon", {}).get(
+                "tunable_settings_mode", "override"
+            )
+            if tunable_settings_mode == "merge":
+                context.settings = recursive_merge(context.settings, tunable_settings)
+            elif tunable_settings_mode == "update":
+                context.settings.update(tunable_settings)
+            else:
+                context.settings = tunable_settings
     # Save reloader status
     context.reloader_used = context.settings.get("server", {}).get(
         "use_reloader",
@@ -108,6 +128,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
             context.debug and \
             context.reloader_used and \
             os.environ.get("WERKZEUG_RUN_MAIN", "false").lower() != "true"
+    # Basic de-init in case reloader is used
+    if context.before_reloader:
+        db_support.basic_deinit(context)
     # Save global node name
     context.node_name = context.settings.get("server", {}).get("name", socket.gethostname())
     # Generate pylon ID

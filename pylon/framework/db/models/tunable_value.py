@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
 
-#   Copyright 2024 getcarrier.io
+#   Copyright 2025 getcarrier.io
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,25 +15,15 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-""" Toolkit """
+""" Tunable value DB model """
 
-import sys
-import types
+from sqlalchemy import Column, Text, LargeBinary  # pylint: disable=E0401
 
-from pylon.core.tools.module.this import This
-
-
-def basic_init(context):
-    """ Make tools holder """
-    # Make tools holder
-    if "tools" not in sys.modules:
-        sys.modules["tools"] = types.ModuleType("tools")
-        sys.modules["tools"].__path__ = []
-    # Register context as a tool
-    setattr(sys.modules["tools"], "context", context)
+from tools import context  # pylint: disable=E0401
 
 
-def init(context):
-    """ Pre-populate toolkit """
-    # Register module helpers as a tool
-    setattr(sys.modules["tools"], "this", This(context))
+class TunableValue(context.pylon_db.Base):  # pylint: disable=C0111,R0903
+    __tablename__ = "tunable_value"
+
+    tunable = Column(Text, primary_key=True)
+    value = Column(LargeBinary, unique=False, default=b"")

@@ -41,26 +41,9 @@ from pylon.core.tools.context import Context
 #
 
 
-def init(context):
-    """ Init DB support """
-    if context.before_reloader:
-        log.info(
-            "Running in development mode before reloader is started. Skipping DB support init"
-        )
-        return
-    #
-    log.info("Initializing DB support")
-    #
-    # App DB
-    #
-    context.db = Context()
-    context.db.config = context.settings.get("db", {})
-    #
-    context.db.url = get_db_url(context.db)
-    context.db.engine = make_engine(context.db)
-    #
-    context.db.schema_mapper = lambda schema: schema
-    context.db.make_session = make_session_fn(context.db)
+def basic_init(context):
+    """ Init basic DB support """
+    log.info("Initializing basic DB support")
     #
     # Pylon DB
     #
@@ -101,6 +84,40 @@ def init(context):
         context.pylon_db.metadata.create_all(bind=context.pylon_db.engine)
     except:  # pylint: disable=W0702
         log.exception("Failed to create Pylon DB entities")
+
+
+def basic_deinit(context):
+    """ De-init basic DB support """
+    log.info("De-initializing basic DB support")
+    #
+    # Pylon DB
+    #
+    try:
+        context.pylon_db.engine.dispose()
+    except:  # pylint: disable=W0702
+        pass
+
+
+def init(context):
+    """ Init DB support """
+    if context.before_reloader:
+        log.info(
+            "Running in development mode before reloader is started. Skipping DB support init"
+        )
+        return
+    #
+    log.info("Initializing DB support")
+    #
+    # App DB
+    #
+    context.db = Context()
+    context.db.config = context.settings.get("db", {})
+    #
+    context.db.url = get_db_url(context.db)
+    context.db.engine = make_engine(context.db)
+    #
+    context.db.schema_mapper = lambda schema: schema
+    context.db.make_session = make_session_fn(context.db)
     #
     # App hooks
     #
@@ -118,19 +135,14 @@ def deinit(context):
     #
     log.info("De-initializing DB support")
     #
-    # Pylon DB
-    #
-    try:
-        context.pylon_db.engine.dispose()
-    except:  # pylint: disable=W0702
-        pass
-    #
     # App DB
     #
     try:
         context.db.engine.dispose()
     except:  # pylint: disable=W0702
         pass
+    #
+    basic_deinit(context)
 
 
 #
