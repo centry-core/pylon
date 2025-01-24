@@ -273,6 +273,7 @@ def make_session_fn(target_db):
         return Session(
             bind=target_engine,
             expire_on_commit=False,
+            autobegin=_target_db.config.get("session_autobegin", True),
         )
     #
     return _make_session
@@ -287,14 +288,23 @@ def check_local_entities():
     """ Validate or set entities in local """
     from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    check_entities = {
-        "db_session": None,
-        "db_session_refs": 0,
-    }
+    # Check and create lock first
     #
-    for key, default in check_entities.items():
-        if key not in context.local.__dict__:
-            setattr(context.local, key, default)
+    if "db_lock" not in context.local.__dict__:
+        setattr(context.local, "db_lock", threading.Lock())
+    #
+    with context.local.db_lock:
+        #
+        # Check entities
+        #
+        check_entities = {
+            "db_session": None,
+            "db_session_refs": 0,
+        }
+        #
+        for key, default in check_entities.items():
+            if key not in context.local.__dict__:
+                setattr(context.local, key, default)
 
 
 def create_local_session():
@@ -305,14 +315,16 @@ def create_local_session():
     #
     check_local_entities()
     #
-    # Create DB session if needed
-    #
-    if context.local.db_session is None:
-        context.local.db_session = context.db.make_session()
-    #
-    # Increment refs count
-    #
-    context.local.db_session_refs += 1
+    with context.local.db_lock:
+        #
+        # Create DB session if needed
+        #
+        if context.local.db_session is None:
+            context.local.db_session = context.db.make_session()
+        #
+        # Increment refs count
+        #
+        context.local.db_session_refs += 1
 
 
 def close_local_session():
@@ -323,32 +335,38 @@ def close_local_session():
     #
     check_local_entities()
     #
-    # Decrement refs count
-    #
-    if context.local.db_session_refs > 0:
-        context.local.db_session_refs -= 1
-    #
-    if context.local.db_session_refs > 0:
-        return  # We are in 'inner' close, leave session untouched
-    #
-    context.local.db_session_refs = 0
-    #
-    # Close session
-    #
-    session = context.local.db_session
-    #
-    if session is None:
-        return  # Closed or broken elsewhere
-    #
-    context.local.db_session = None
-    #
-    try:
-        if session.is_active:
-            session.commit()
-        else:
-            session.rollback()
-    finally:
-        session.close()
+    with context.local.db_lock:
+        #
+        # Decrement refs count
+        #
+        if context.local.db_session_refs > 0:
+            context.local.db_session_refs -= 1
+        #
+        if context.local.db_session_refs > 0:
+            return  # We are in 'inner' close, leave session untouched
+        #
+        context.local.db_session_refs = 0
+        #
+        # Close session
+        #
+        session = context.local.db_session
+        #
+        if session is None:
+            return  # Closed or broken elsewhere
+        #
+        context.local.db_session = None
+        #
+        try:
+            if session.is_active:
+                try:
+                    session.commit()
+                except:  # pylint: disable=W0702
+                    session.rollback()
+                    raise
+            else:
+                session.rollback()
+        finally:
+            session.close()
 
 
 class local_session:  # pylint: disable=C0103
@@ -381,7 +399,7 @@ class DbNamespaceHelper:  # pylint: disable=R0903
     def __getattr__(self, name):
         with self.__lock:
             if name not in self.__namespaces:
-                self.__namespaces[name] = make_module_entities(self.__context)
+                self.__namespaces[name] = make_namespace_entities(self.__context)
             #
             try:
                 from tools import this  # pylint: disable=E0401,C0411,C0415
@@ -398,7 +416,89 @@ class DbNamespaceHelper:  # pylint: disable=R0903
             return self.__namespaces
 
 
-def make_module_entities(context, spaces=None):
+class DbSessionHelper:  # pylint: disable=R0903
+    """ Session helper """
+
+    def __init__(self, context, module_name, make_session_args=None, make_session_kwargs=None):
+        self.__context = context
+        self.__module_name = module_name
+        #
+        self.__make_session_args = make_session_args if make_session_args is not None else []
+        self.__make_session_kwargs = make_session_kwargs if make_session_kwargs is not None else {}
+        #
+        self.__local = threading.local()
+        self.__lock = threading.Lock()
+
+    def __ensure_local(self):
+        with self.__lock:
+            if "db_sessions" not in self.__local.__dict__:
+                setattr(self.__local, "db_sessions", {})
+            #
+            if self.__module_name not in self.__local.db_sessions:
+                self.__local.db_sessions[self.__module_name] = []
+
+    #
+    # Case: with this.db.session: ...
+    #
+
+    def __enter__(self):
+        self.__ensure_local()
+        #
+        with self.__lock:
+            session = self.__context.db.make_session(
+                *self.__make_session_args,
+                **self.__make_session_kwargs,
+            )
+            session_transaction = session.begin()
+            #
+            self.__local.db_sessions[self.__module_name].append(
+                (session, session_transaction),
+            )
+            #
+            session_transaction.__enter__()
+            return session
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        with self.__lock:
+            session, session_transaction = self.__local.db_sessions[self.__module_name].pop()
+            #
+            try:
+                session_transaction.__exit__(exc_type, exc_value, exc_traceback)
+            finally:
+                session.close()
+
+    #
+    # Case: with this.db.session(schema, ...): ...
+    #
+
+    def __call__(self, *args, **kwargs):
+        return DbSessionHelper(self.__context, self.__module_name, args, kwargs)
+
+    #
+    # Case: this.db.session.add(...)
+    #
+
+    def __getattr__(self, name):
+        if not hasattr(self.__context.local, "db_session"):
+            raise AttributeError("Local session is not present")
+        #
+        return getattr(self.__context.local.db_session, name)
+
+
+def make_namespace_entities(context):
+    """ Make namespace-specific entities """
+    _ = context
+    result = Context()
+    #
+    result.metadata = sqlalchemy.MetaData()
+    result.Base = declarative_base(
+        metadata=result.metadata,
+    )
+    #
+    return result
+
+
+def make_module_entities(context, module_name, spaces):
     """ Make module-specific entities """
     result = Context()
     #
@@ -407,11 +507,12 @@ def make_module_entities(context, spaces=None):
         metadata=result.metadata,
     )
     #
-    if spaces is not None:
-        if "db_namespace_helper" not in spaces:
-            spaces["db_namespace_helper"] = DbNamespaceHelper(context)
-        #
-        result.ns = spaces["db_namespace_helper"]
-        result.ns_used = set()
+    if "db_namespace_helper" not in spaces:
+        spaces["db_namespace_helper"] = DbNamespaceHelper(context)
+    #
+    result.ns = spaces["db_namespace_helper"]
+    result.ns_used = set()
+    #
+    result.session = DbSessionHelper(context, module_name)
     #
     return result

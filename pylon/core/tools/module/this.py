@@ -19,6 +19,7 @@
 """ Modules """
 
 import inspect
+import threading
 
 from pylon.core.tools import db_support
 from pylon.core.tools.context import Context
@@ -31,6 +32,7 @@ class This:  # pylint: disable=R0903
         self.__context = context
         self.__modules = {}
         self.__spaces = {}
+        self.__lock = threading.Lock()
 
     def __getattr__(self, name):
         module_name = None
@@ -47,8 +49,9 @@ class This:  # pylint: disable=R0903
 
     def for_module(self, name, recreate=False):
         """ Get exact for known module name """
-        if name not in self.__modules or recreate:
-            self.__modules[name] = ModuleThis(self.__context, self.__spaces, name)
+        with self.__lock:
+            if name not in self.__modules or recreate:
+                self.__modules[name] = ModuleThis(self.__context, self.__spaces, name)
         #
         return self.__modules[name]
 
@@ -64,8 +67,9 @@ class ModuleThis:  # pylint: disable=R0903
         self.descriptor = self.context.module_manager.descriptors[self.module_name]
         #
         self.data = Context()
+        self.lock = threading.Lock()
         #
-        self.db = db_support.make_module_entities(self.context, self.spaces)
+        self.db = db_support.make_module_entities(self.context, self.module_name, self.spaces)
 
     @property
     def module(self):
