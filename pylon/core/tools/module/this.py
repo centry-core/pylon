@@ -45,9 +45,9 @@ class This:  # pylint: disable=R0903
         exact = self.for_module(module_name)
         return getattr(exact, name)
 
-    def for_module(self, name):
+    def for_module(self, name, recreate=False):
         """ Get exact for known module name """
-        if name not in self.__modules:
+        if name not in self.__modules or recreate:
             self.__modules[name] = ModuleThis(self.__context, self.__spaces, name)
         #
         return self.__modules[name]
@@ -66,3 +66,8 @@ class ModuleThis:  # pylint: disable=R0903
         self.data = Context()
         #
         self.db = db_support.make_module_entities(self.context, self.spaces)
+
+    @property
+    def module(self):
+        """ Get module instance """
+        return self.descriptor.module
