@@ -438,7 +438,7 @@ class DbSessionHelper:  # pylint: disable=R0903
                 self.__local.db_sessions[self.__module_name] = []
 
     #
-    # Case: with this.db.session: ...
+    # Case: with this.db.session as session: ...
     #
 
     def __enter__(self):
@@ -468,7 +468,7 @@ class DbSessionHelper:  # pylint: disable=R0903
                 session.close()
 
     #
-    # Case: with this.db.session(schema, ...): ...
+    # Case: with this.db.session(schema, ...) as session: ...
     #
 
     def __call__(self, *args, **kwargs):
@@ -479,6 +479,12 @@ class DbSessionHelper:  # pylint: disable=R0903
     #
 
     def __getattr__(self, name):
+        self.__ensure_local()
+        #
+        if self.__local.db_sessions[self.__module_name]:
+            latest_session = self.__local.db_sessions[self.__module_name][-1][0]
+            return getattr(latest_session, name)
+        #
         if not hasattr(self.__context.local, "db_session"):
             raise AttributeError("Local session is not present")
         #
