@@ -52,6 +52,7 @@ import uuid
 import socket
 import signal
 import threading
+import pkg_resources
 
 import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
@@ -85,9 +86,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
     """ Entry point """
     # Register signal handling early
     signal.signal(signal.SIGTERM, signal_sigterm)
-    # Enable basic logging and say hello
-    log_support.enable_basic_logging()
-    log.info("Starting plugin-based Carrier/Centry core")
     # Make context holder
     context = Context()
     # Save debug status
@@ -95,6 +93,14 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.web_runtime = CORE_WEB_RUNTIME
     # Save runime init
     context.runtime_init = os.environ.get("PYLON_INIT", "unknown")
+    # Get pylon version
+    try:
+        context.version = pkg_resources.require("pylon")[0].version
+    except:  # pylint: disable=W0702
+        context.version = "unknown"
+    # Enable basic logging and say hello
+    log_support.enable_basic_logging()
+    log.info("Starting plugin-based Carrier/Centry core (version %s)", context.version)
     # Load settings from seed
     log.info("Loading and parsing settings")
     context.settings = seed.load_settings()
