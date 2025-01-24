@@ -70,7 +70,7 @@ from pylon.core.tools import ssl
 from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import session
-from pylon.core.tools import traefik
+from pylon.core.tools import external_routing
 from pylon.core.tools import exposure
 
 from pylon.core.tools.dict import recursive_merge
@@ -84,6 +84,9 @@ from pylon.framework import toolkit
 
 def main():  # pylint: disable=R0912,R0914,R0915
     """ Entry point """
+    #
+    # Phase: bootstrap
+    #
     # Register signal handling early
     signal.signal(signal.SIGTERM, signal_sigterm)
     # Make context holder
@@ -159,18 +162,34 @@ def main():  # pylint: disable=R0912,R0914,R0915
     log_support.reinit_logging(context)
     # Make stop event
     context.stop_event = threading.Event()
+    # Initialize local data
+    context.local = threading.local()
     # Enable zombie reaping
-    context.zombie_reaper = ZombieReaper(context)
     if context.settings.get("system", {}).get("zombie_reaping", {}).get("enabled", False):
+        context.zombie_reaper = ZombieReaper(context)
         context.zombie_reaper.start()
     # Prepare SSL custom cert bundle
     ssl.init(context)
+    # Apply patches needed for pure-python git and providers
+    git.apply_patches()
+    #
+    # Phase: entity instances
+    #
     # Make ModuleManager instance
     log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
     # Make EventManager instance
     log.info("Creating EventManager instance")
     context.event_manager = event.EventManager(context)
+    # Make RpcManager instance
+    log.info("Creating RpcManager instance")
+    context.rpc_manager = rpc.RpcManager(context)
+    # Make SlotManager instance
+    log.info("Creating SlotManager instance")
+    context.slot_manager = slot.SlotManager(context)
+    #
+    # Phase: WSGI app
+    #
     # Add global URL prefix to context
     server.add_url_prefix(context)
     # Make app instance
@@ -179,8 +198,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make API instance
     log.info("Creating API instance")
     context.api = flask_restful.Api(context.app, catch_all_404s=True)
-    # Initialize local data
-    context.local = threading.local()
     # Make SocketIO instance
     log.info("Creating SocketIO instance")
     context.sio = server.create_socketio_instance(context)
@@ -191,14 +208,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.app.config.from_mapping(context.settings.get("application", {}))
     # Enable server-side sessions
     session.init_flask_sessions(context)
-    # Make RpcManager instance
-    log.info("Creating RpcManager instance")
-    context.rpc_manager = rpc.RpcManager(context)
-    # Make SlotManager instance
-    log.info("Creating SlotManager instance")
-    context.slot_manager = slot.SlotManager(context)
-    # Apply patches needed for pure-python git and providers
-    git.apply_patches()
+    #
+    # Phase: modules
+    #
     # Init framework toolkit
     toolkit.init(context)
     # Initialize DB support
@@ -206,10 +218,16 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Load and initialize modules
     context.module_manager.init_modules()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)
-    # Register Traefik route via Redis KV
-    traefik.register_traefik_route(context)
+    #
+    # Phase: exposure
+    #
+    # Register external route
+    external_routing.register(context)
     # Expose pylon
     exposure.expose(context)
+    #
+    # Phase: operational
+    #
     # Run WSGI server
     try:
         server.run_server(context)
@@ -219,12 +237,15 @@ def main():  # pylint: disable=R0912,R0914,R0915
         context.stop_event.set()
         # Unexpose pylon
         exposure.unexpose(context)
-        # Unregister traefik route
-        traefik.unregister_traefik_route(context)
+        # Unregister external route
+        external_routing.unregister(context)
         # De-init modules
         context.module_manager.deinit_modules()
         # De-initialize DB support
         db_support.deinit(context)
+    #
+    # Phase: terminate
+    #
     # Kill remaining processes to avoid keeping the container running on update
     if context.settings.get("system", {}).get("kill_remaining_processes", True) and \
             context.runtime_init in ["pylon", "dumb-init"]:

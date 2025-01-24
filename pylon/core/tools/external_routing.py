@@ -30,7 +30,7 @@ from pylon.core.tools import log
 from pylon.core.tools import env
 
 
-def register_traefik_route(context):
+def register(context):
     """ Create Traefik route for this Pylon instance """
     context.traefik_redis_keys = list()
     #
@@ -40,12 +40,11 @@ def register_traefik_route(context):
     #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
-        log.info("Cannot register route: no traefik config")
         return
     #
     redis_config = traefik_config.get("redis", dict())
     if not redis_config:
-        log.info("Cannot register route: no redis config")
+        log.warning("Cannot register route: no redis config")
         return
     #
     local_hostname = socket.gethostname()
@@ -124,7 +123,7 @@ def register_traefik_route(context):
     store.set(f"{traefik_rootkey}/http/routers/{node_name}/service", f"{node_name}")
     context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/service")
 
-def unregister_traefik_route(context):
+def unregister(context):
     """ Delete Traefik route for this Pylon instance """
     #
     if context.before_reloader:
@@ -133,12 +132,11 @@ def unregister_traefik_route(context):
     #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
-        log.info("Cannot unregister route: no traefik config")
         return
     #
     redis_config = traefik_config.get("redis", dict())
     if not redis_config:
-        log.info("Cannot unregister route: no redis config")
+        log.warning("Cannot unregister route: no redis config")
         return
     #
     log.info("Unregistering traefik route for node '%s'", context.node_name)
