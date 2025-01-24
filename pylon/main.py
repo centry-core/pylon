@@ -184,9 +184,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make RpcManager instance
     log.info("Creating RpcManager instance")
     context.rpc_manager = rpc.RpcManager(context)
-    # Make SlotManager instance
-    log.info("Creating SlotManager instance")
-    context.slot_manager = slot.SlotManager(context)
     #
     # Phase: WSGI app
     #
@@ -208,6 +205,12 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.app.config.from_mapping(context.settings.get("application", {}))
     # Enable server-side sessions
     session.init_flask_sessions(context)
+    #
+    # Phase: transitional
+    #
+    # Make SlotManager instance
+    log.info("Creating SlotManager instance")
+    context.slot_manager = slot.SlotManager(context)
     #
     # Phase: modules
     #
