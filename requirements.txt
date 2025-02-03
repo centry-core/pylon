@@ -1,68 +1,138 @@
-aio-pika==9.4.0
-aioredis==2.0.1
-alembic==1.11.1
-amqp==5.1.1
-aniso8601==9.0.1
-arbiter @ git+https://github.com/centry-core/arbiter.git
-asgiref==3.8.1
-async-timeout==4.0.2
-attrs==21.4.0
-bcrypt==3.2.0
-bidict==0.23.1
-blinker==1.9.0
-centry_logging @ git+https://github.com/centry-core/centry_logging.git
-cffi==1.15.0
-chardet==3.0.4
-charset-normalizer==2.1.1
-configparser==5.2.0
-coverage==5.5
-cryptography==41.0.7
-dulwich==0.21.5
-Flask==2.2.5
-Flask-KVSession==0.6.2
-Flask-RESTful==0.3.9
-gevent==24.2.1
-gevent-websocket==0.10.1
-google-cloud-logging==3.11.3
-greenlet==3.0.3
-h11==0.14.0
-hvac==1.1.1
-Hypercorn==0.17.3
-idna==2.10
-iniconfig==1.1.1
-itsdangerous==2.0.1
-kombu==5.2.2
-minio==7.1.14
-packaging==21.3
-paramiko==3.1.0
+# Process
+setproctitle==1.3.4
+psutil==6.1.1
+
+# Config
+PyYAML==6.0.2
+Jinja2==3.1.5
+#
+MarkupSafe==3.0.2
+
+# Secrets
+hvac==2.3.0
+
+# Crypto
+cryptography==44.0.0
+#
+cffi==1.17.1
+pycparser==2.22
+
+# Storage
+minio==7.2.15
+#
+argon2-cffi==23.1.0
+typing-extensions==4.12.2
+pycryptodome==3.21.0
+argon2-cffi-bindings==21.2.0
+
+# DB
+SQLAlchemy==2.0.37
+alembic==1.14.1
+psycopg2==2.9.10
+#
+greenlet==3.1.1
+Mako==1.3.8
+
+# Validation
+# pydantic==1.10.21
+# pydantic==2.10.6
+
+# SSL
+certifi==2025.1.31
+
+# HTTP
+urllib3==2.3.0
+requests==2.32.3
+#
+idna==3.10
+charset-normalizer==3.4.1
+
+# KV, broker
+redis==5.2.1
 pika==1.3.2
-pluggy==0.13.1
-psutil==6.1.0
-psycogreen==1.0.2
-psycopg2==2.9.5
-py==1.11.0
-pycparser==2.21
-pydantic==1.10.11
+#
+aio-pika==9.5.4
+aioredis==2.0.1
+async-timeout==5.0.1
+amqp==5.3.1
+kombu==5.4.2
+
+# Git
+dulwich==0.22.7
+paramiko==3.5.0
+#
+bcrypt==4.2.1
 PyNaCl==1.5.0
-pyparsing==3.0.7
-pytest==6.2.4
+
+# Flask
+Flask==2.3.3
+werkzeug==2.3.8
+blinker==1.9.0
+#
+itsdangerous==2.2.0
+click==8.1.8
+
+# Flask addons
+Flask-RESTful==0.3.10
+Flask-KVSession==0.6.2
+simplekv==0.14.1
+#
+pytz==2025.1
+six==1.17.0
+aniso8601==10.0.0
+
+# SIO
 python-engineio[client]==4.11.2
 python-socketio[client]==5.12.1
-pytz==2022.1
-PyYAML==6.0.1
-redis==4.5.5
-requests>=2.28.1
-setproctitle==1.3.3
 simple-websocket==1.1.0
-simplekv==0.14.1
-six==1.16.0
-SQLAlchemy==2.0.29
-toml==0.10.2
-urllib3==1.26.15
-vine==5.0.0
-waitress==3.0.0
-watchdog==3.0.0
-Werkzeug==2.3.7
+#
+websocket-client==1.8.0
+bidict==0.21.0
 wsproto==1.2.0
-zope.event==4.5.0
-zope.interface==5.4.0
+
+# Gevent
+gevent==24.11.1
+gevent-websocket==0.10.1
+psycogreen==1.0.2
+#
+zope.event==5.0
+zope.interface==7.2
+
+# Waitress
+waitress==3.0.2
+
+# Async
+asgiref==3.8.1
+asyncio==3.4.3
+
+# Hypercorn
+Hypercorn==0.17.3
+#
+exceptiongroup==1.2.2
+tomli==2.2.1
+priority==2.0.0
+h11==0.14.0
+taskgroup==0.2.2
+h2==4.2.0
+hpack==4.1.0
+hyperframe==6.1.0
+
+# Misc, other
+attrs==25.1.0
+chardet==5.2.0
+configparser==7.1.0
+py==1.11.0
+toml==0.10.2
+vine==5.1.0
+watchdog==6.0.0
+pyparsing==3.2.1
+
+# Centry
+arbiter @ git+https://github.com/centry-core/arbiter.git
+centry_logging @ git+https://github.com/centry-core/centry_logging.git
+#
+pytest==8.3.4
+coverage==7.6.10
+packaging==24.2
+pluggy==1.5.0
+iniconfig==2.0.0
