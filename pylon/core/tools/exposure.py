@@ -16,6 +16,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+# TODO: trusted and untrusted nodes. Use separate HMAC keys for that?
+
 """
     Exposure tools
 """
@@ -83,12 +85,14 @@ def expose(context):
         )
         #
         for idx, url_prefix in enumerate(handle_config.get("prefixes", [])):
+            exposure_app = context.app_manager.make_app_instance("pylon.core.tools.exposure")
+            #
             while url_prefix.endswith("/"):
                 url_prefix = url_prefix[:-1]
             #
             base_url = f'{url_prefix}/'
             #
-            context.app.add_url_rule(
+            exposure_app.add_url_rule(
                 base_url,
                 endpoint=f"pylon_exposure_{context.id}_{idx}",
                 view_func=on_request,
@@ -98,7 +102,7 @@ def expose(context):
                 ],
             )
             #
-            context.app.add_url_rule(
+            exposure_app.add_url_rule(
                 f'{base_url}/<path:sub_path>',
                 endpoint=f"pylon_exposure_{context.id}_{idx}_sub_path",
                 view_func=on_request,
@@ -108,6 +112,8 @@ def expose(context):
             )
             #
             # (Pre-)Register public route un auth somehow?
+            #
+            context.app_router.map[base_url] = exposure_app
         #
         context.sio.pylon_add_any_handler(on_sio)
         #
@@ -381,7 +387,7 @@ def wsgi_call(environ):
     data = None
     #
     try:
-        data = context.app.wsgi_app(
+        data = context.app_router_wsgi(
             prepare_call_environ(environ), start_response,
         )
         for item in data:

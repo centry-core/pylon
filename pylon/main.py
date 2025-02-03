@@ -2,7 +2,7 @@
 # coding=utf-8
 # pylint: disable=C0411,C0412,C0413
 
-#   Copyright 2020-2021 getcarrier.io
+#   Copyright 2020-2025 getcarrier.io
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -24,12 +24,10 @@
 # Before all other imports and code: patch standard library and other libraries to use async I/O
 #
 
-from pylon.core.tools import env
+import os
+CORE_WEB_RUNTIME = os.environ.get("PYLON_WEB_RUNTIME", os.environ.get("CORE_WEB_RUNTIME", "flask"))
 
-CORE_DEVELOPMENT_MODE = env.get_var("DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
-CORE_WEB_RUNTIME = env.get_var("WEB_RUNTIME", "flask")
-
-if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
+if CORE_WEB_RUNTIME == "gevent":
     import gevent.monkey  # pylint: disable=E0401
     gevent.monkey.patch_all()
     #
@@ -47,7 +45,6 @@ if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
 # Normal imports and code below
 #
 
-import os
 import uuid
 import socket
 import signal
@@ -60,16 +57,17 @@ import flask_restful  # pylint: disable=E0401
 from pylon.core.tools import log
 from pylon.core.tools import log_support
 from pylon.core.tools import db_support
+from pylon.core.tools import env
 from pylon.core.tools import config
 from pylon.core.tools import module
 from pylon.core.tools import event
 from pylon.core.tools import seed
 from pylon.core.tools import git
+from pylon.core.tools import app
 from pylon.core.tools import rpc
 from pylon.core.tools import ssl
 from pylon.core.tools import slot
 from pylon.core.tools import server
-from pylon.core.tools import session
 from pylon.core.tools import external_routing
 from pylon.core.tools import exposure
 
@@ -91,11 +89,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     signal.signal(signal.SIGTERM, signal_sigterm)
     # Make context holder
     context = Context()
-    # Save debug status
-    context.debug = CORE_DEVELOPMENT_MODE
+    # Save env-provided settings
     context.web_runtime = CORE_WEB_RUNTIME
-    # Save runime init
-    context.runtime_init = os.environ.get("PYLON_INIT", "unknown")
+    context.runtime_init = env.get_var("INIT", "unknown")
+    context.debug = env.get_var("DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
     # Get pylon version
     try:
         context.version = pkg_resources.require("pylon")[0].version
@@ -128,13 +125,19 @@ def main():  # pylint: disable=R0912,R0914,R0915
                 context.settings.update(tunable_settings)
             else:
                 context.settings = tunable_settings
+    # Allow to override debug from config
+    if "debug" in context.settings.get("server", {}):
+        context.debug = context.settings.get("server").get("debug")
+    # Allow to override runtime from config (if initial runtime != gevent)
+    if context.web_runtime != "gevent" and "runtime" in context.settings.get("server", {}):
+        context.web_runtime = context.settings.get("server").get("runtime")
     # Save reloader status
     context.reloader_used = context.settings.get("server", {}).get(
         "use_reloader",
-        env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+        env.get_var("USE_RELOADER", "false").lower() in ["true", "yes"],
     )
     context.before_reloader = \
-            context.debug and \
+            context.web_runtime == "flask" and \
             context.reloader_used and \
             os.environ.get("WERKZEUG_RUN_MAIN", "false").lower() != "true"
     # Basic de-init in case reloader is used
@@ -144,22 +147,17 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.node_name = context.settings.get("server", {}).get("name", socket.gethostname())
     # Generate pylon ID
     context.id = f'{context.node_name}_{str(uuid.uuid4())}'
-    log.info("Pylon ID: %s", context.id)
-    # Set process title
-    import setproctitle  # pylint: disable=C0415,E0401
-    setproctitle.setproctitle(f'pylon {context.id}')
     # Set environment overrides (e.g. to add env var with data from vault)
     log.info("Setting environment overrides")
     for key, value in context.settings.get("environment", {}).items():
         os.environ[key] = value
-    # Allow to override debug from config (if != gevent in env)
-    if context.web_runtime != "gevent" and "debug" in context.settings.get("server", {}):
-        context.debug = context.settings.get("server").get("debug")
-    # Allow to override runtime from config (if != gevent in env)
-    if context.web_runtime != "gevent" and "runtime" in context.settings.get("server", {}):
-        context.web_runtime = context.settings.get("server").get("runtime")
     # Reinit logging with full config
     log_support.reinit_logging(context)
+    # Log pylon ID
+    log.info("Pylon ID: %s", context.id)
+    # Set process title
+    import setproctitle  # pylint: disable=C0415,E0401
+    setproctitle.setproctitle(f'pylon {context.id}')
     # Make stop event
     context.stop_event = threading.Event()
     # Initialize local data
@@ -175,6 +173,9 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: entity instances
     #
+    # Make AppManager instance
+    log.info("Creating AppManager instance")
+    context.app_manager = app.AppManager(context)
     # Make ModuleManager instance
     log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
@@ -184,33 +185,16 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make RpcManager instance
     log.info("Creating RpcManager instance")
     context.rpc_manager = rpc.RpcManager(context)
-    #
-    # Phase: WSGI app
-    #
-    # Add global URL prefix to context
-    server.add_url_prefix(context)
-    # Make app instance
-    log.info("Creating Flask application")
-    context.app = flask.Flask("pylon")
-    # Make API instance
-    log.info("Creating API instance")
-    context.api = flask_restful.Api(context.app, catch_all_404s=True)
-    # Make SocketIO instance
-    log.info("Creating SocketIO instance")
-    context.sio = server.create_socketio_instance(context)
-    # Add dispatcher and proxy middlewares if needed
-    server.add_middlewares(context)
-    # Set application settings
-    context.app.config["CONTEXT"] = context
-    context.app.config.from_mapping(context.settings.get("application", {}))
-    # Enable server-side sessions
-    session.init_flask_sessions(context)
-    #
-    # Phase: transitional
-    #
     # Make SlotManager instance
     log.info("Creating SlotManager instance")
     context.slot_manager = slot.SlotManager(context)
+    #
+    # Phase: A/WSGI apps
+    #
+    # Add server-related data
+    server.init_context(context)
+    # Init app hierarchy
+    context.app_manager.init_hierarchy()
     #
     # Phase: modules
     #
@@ -231,11 +215,11 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: operational
     #
-    # Run WSGI server
+    # Run A/WSGI server
     try:
         server.run_server(context)
     finally:
-        log.info("WSGI server stopped")
+        log.info("A/WSGI server stopped")
         # Set stop event
         context.stop_event.set()
         # Unexpose pylon

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding=utf-8
 
-#   Copyright 2021 getcarrier.io
+#   Copyright 2021-2025 getcarrier.io
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -29,9 +29,12 @@ class SlotManager:
 
     def __init__(self, context):
         self.context = context
-        self.callbacks = dict()
+        self.callbacks = {}
+        self.local_callbacks = []  # (slot, callback_name)
         #
-        self.context.app.context_processor(template_slot_processor(self.context))
+        self.context.app_manager.register_app_hook(
+            lambda app: app.context_processor(template_slot_processor(self.context))
+        )
         #
         self.context.event_manager.register_listener(
             "register_slot_callback", self._on_register_slot_callback
@@ -62,10 +65,9 @@ class SlotManager:
             }
         )
         #
-        # if slot not in self.callbacks:
-        #     self.callbacks[slot] = list()
-        # if callback not in self.callbacks[slot]:
-        #     self.callbacks[slot].append(callback)
+        self.local_callbacks.append(
+            (slot, callback_name),
+        )
 
     def unregister_callback(self, slot, callback):
         """ Unregister slot callback """

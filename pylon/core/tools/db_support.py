@@ -121,8 +121,10 @@ def init(context):
     #
     # App hooks
     #
-    context.app.before_request(db_before_request)
-    context.app.teardown_appcontext(db_teardown_appcontext)
+    context.app_manager.register_app_hook(lambda app: app.before_request(db_before_request))
+    context.app_manager.register_app_hook(
+        lambda app: app.teardown_appcontext(db_teardown_appcontext)
+    )
 
 
 def deinit(context):

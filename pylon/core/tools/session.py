@@ -20,7 +20,6 @@
     Session tools
 """
 
-from flask_kvsession import KVSessionExtension  # pylint: disable=E0401
 from simplekv.decorator import PrefixDecorator  # pylint: disable=E0401
 from simplekv.memory.redisstore import RedisStore  # pylint: disable=E0401
 from simplekv.memory import DictStore  # pylint: disable=E0401
@@ -29,8 +28,8 @@ from redis import StrictRedis  # pylint: disable=E0401
 from pylon.core.tools import log
 
 
-def init_flask_sessions(context):
-    """ Enable third-party server-side session storage """
+def make_session_store(context):
+    """ Make session store for third-party server-side session storage """
     redis_config = context.settings.get("sessions", {}).get("redis", {})
     #
     if redis_config:
@@ -50,4 +49,4 @@ def init_flask_sessions(context):
         session_store = DictStore()
         log.info("Using memory for session storage")
     #
-    KVSessionExtension(session_store, context.app)
+    return session_store

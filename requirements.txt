@@ -3,12 +3,12 @@ aioredis==2.0.1
 alembic==1.11.1
 amqp==5.1.1
 aniso8601==9.0.1
-arbiter @ git+https://github.com/carrier-io/arbiter.git@tasknode
-asgiref==3.7.2
+arbiter @ git+https://github.com/centry-core/arbiter.git
+asgiref==3.8.1
 async-timeout==4.0.2
 attrs==21.4.0
 bcrypt==3.2.0
-bidict==0.22.1
+bidict==0.23.1
 centry_logging @ git+https://github.com/centry-core/centry_logging.git
 cffi==1.15.0
 chardet==3.0.4
@@ -26,7 +26,7 @@ google-cloud-logging==3.11.3
 greenlet==3.0.3
 h11==0.14.0
 hvac==1.1.1
-Hypercorn==0.16.0
+Hypercorn==0.17.3
 idna==2.10
 iniconfig==1.1.1
 itsdangerous==2.0.1
@@ -45,20 +45,20 @@ pydantic==1.10.11
 PyNaCl==1.5.0
 pyparsing==3.0.7
 pytest==6.2.4
-python-engineio[client]==4.9.0
-python-socketio[client]==5.11.1
+python-engineio[client]==4.11.2
+python-socketio[client]==5.12.1
 pytz==2022.1
 PyYAML==6.0.1
 redis==4.5.5
 requests>=2.28.1
 setproctitle==1.3.3
-simple-websocket==1.0.0
+simple-websocket==1.1.0
 simplekv==0.14.1
 six==1.16.0
 SQLAlchemy==2.0.29
 toml==0.10.2
 urllib3==1.26.15
-uvicorn==0.27.0.post1
+uvicorn==0.34.0
 vine==5.0.0
 waitress==3.0.0
 watchdog==3.0.0

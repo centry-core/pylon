@@ -36,13 +36,16 @@ class This:  # pylint: disable=R0903
 
     def __getattr__(self, name):
         module_name = None
-        caller_module = inspect.currentframe().f_back.f_globals["__name__"]
         #
-        if caller_module.startswith("plugins."):
-            module_name = caller_module.split(".")[1]
+        for frame_info in inspect.stack():
+            caller_module = frame_info.frame.f_globals["__name__"]
+            #
+            if caller_module.startswith("plugins."):
+                module_name = caller_module.split(".")[1]
+                break
         #
         if module_name is None:
-            raise RuntimeError(f"Caller is not a pylon module: {caller_module}")
+            raise RuntimeError("Caller is not a pylon module")
         #
         exact = self.for_module(module_name)
         return getattr(exact, name)

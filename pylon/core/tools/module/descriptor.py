@@ -58,6 +58,9 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         self.module = None
         self.prepared = False
         self.activated = False
+        #
+        self.url_prefix = f"{self.context.url_prefix}/{self.name}"
+        self.app = self.context.app_manager.make_app_instance(f"plugins.{self.name}")
 
     def load_config(self):
         """ Load custom (or default) configuration """
@@ -108,8 +111,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         if self.loader.has_directory("templates"):
             template_folder = "templates"
         #
-        if url_prefix is None:
-            url_prefix = f"/{self.name}"
+        if url_prefix is not None:
+            self.url_prefix = f'{self.context.url_prefix}/{url_prefix.lstrip("/")}'
         #
         static_folder = None
         if self.loader.has_directory("static"):
@@ -117,10 +120,13 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
             if static_url_prefix is None:
                 static_url_prefix = "static"
         #
+        if static_url_prefix is not None:
+            static_url_prefix = f'{self.context.url_prefix}/{static_url_prefix.lstrip("/")}'
+        #
         result_blueprint = flask.Blueprint(
             self.name, f"plugins.{self.name}",
             root_path=self.path,
-            url_prefix=url_prefix,
+            url_prefix=self.url_prefix,
             template_folder=template_folder,
             static_folder=static_folder,
             static_url_path=static_url_prefix,
@@ -177,10 +183,12 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
             if module_routes:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
+            #
             result_blueprint.add_url_rule(rule, endpoint, obj, **options)
-        # Register in app
+        #
         if register_in_app:
-            self.context.app.register_blueprint(result_blueprint)
+            self.app.register_blueprint(result_blueprint)
+            self.context.app_router.map[f'{self.url_prefix.rstrip("/")}/'] = self.app
         #
         return result_blueprint
 
@@ -232,14 +240,36 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                     resource_urls.append(f"/api/{api_version}/{module_name}/{resource_name}")
                     resource_urls.append(f"/api/{api_version}/{module_name}/{resource_name}/")
                 #
-                self.context.api.add_resource(
-                    resource,
-                    *resource_urls,
-                    endpoint=f"api.{api_version}.{module_name}.{resource_name}",
-                    resource_class_kwargs={
-                        "module": self.module,
-                    }
-                )
+                def _make_add_resource_hook(
+                        _resource,
+                        _resource_urls,
+                        _api_version,
+                        _module_name,
+                        _resource_name,
+                        _module,
+                ):
+                    __resource = _resource
+                    __resource_urls = _resource_urls
+                    __api_version = _api_version
+                    __module_name = _module_name
+                    __resource_name = _resource_name
+                    __module = _module
+                    #
+                    def _add_resource(api):
+                        api.add_resource(
+                            __resource,
+                            *__resource_urls,
+                            endpoint=f"api.{__api_version}.{__module_name}.{__resource_name}",
+                            resource_class_kwargs={
+                                "module": __module,
+                            }
+                        )
+                    #
+                    return _add_resource
+                #
+                self.context.app_manager.register_api_hook(_make_add_resource_hook(
+                    resource, resource_urls, api_version, module_name, resource_name, self.module
+                ))
 
     def init_slots(self, module_slots=True):
         """ Register all decorated slots from this module """
