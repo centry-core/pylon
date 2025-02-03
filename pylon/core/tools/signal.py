@@ -20,7 +20,122 @@
     Signal tools
 """
 
+import os
+import time
+import threading
+
+import psutil  # pylint: disable=E0401
+
+from pylon.core.tools import log
+
 
 def signal_sigterm(signal_num, stack_frame):
     """ SIGTERM signal handler: for clean and fast docker stop/restart """
     raise SystemExit
+
+
+def kill_remaining_processes(context):
+    """ Send SIGKILL to all other processes """
+    try:
+        current_pid = os.getpid()
+        #
+        running_pids = psutil.pids()
+        running_pids.sort(reverse=True)
+        #
+        for pid in running_pids:
+            if pid == current_pid:
+                continue  # Skip pylon itself
+            #
+            if pid == 1 and context.runtime_init == "dumb-init":
+                continue  # Skip init
+            #
+            log.info("Killing remaining process: %s", pid)
+            #
+            try:
+                process = psutil.Process(pid=pid)
+                process.kill()
+            except:  # pylint: disable=W0702
+                pass
+    except:  # pylint: disable=W0702
+        pass
+
+
+class ZombieReaper(threading.Thread):
+    """ Reap zombie processes """
+
+    def __init__(self, context):
+        super().__init__(daemon=True)
+        #
+        self.context = context
+        self.interval = int(
+            self.context.settings.get(
+                "system", {}
+            ).get(
+                "zombie_reaping", {}
+            ).get(
+                "interval", 1
+            )
+        )
+        #
+        self.external_pids = set()
+
+    def run(self):
+        """ Run reaper thread """
+        #
+        while not self.context.stop_event.is_set():
+            try:
+                time.sleep(self.interval)
+                self._reap_zombies()
+            except:  # pylint: disable=W0702
+                log.exception("Exception in reaper thread, continuing")
+
+    def _reap_zombies(self):
+        exited_pids = []
+        known_pids = set()
+        #
+        # Collect stopped processes
+        #
+        while True:
+            try:
+                child_siginfo = os.waitid(  # pylint: disable=E1101
+                    os.P_ALL, os.getpid(), os.WEXITED | os.WNOHANG | os.WNOWAIT  # pylint: disable=E1101
+                )
+                #
+                if child_siginfo is None:
+                    break
+                #
+                child_pid = child_siginfo.si_pid
+                #
+                if child_pid in known_pids:
+                    break
+                #
+                known_pids.add(child_pid)
+                #
+                if child_pid in self.external_pids:
+                    continue
+                #
+                exited_pids.append(child_pid)
+            except:  # pylint: disable=W0702
+                break
+        #
+        # Process collected PIDs
+        #
+        while exited_pids:
+            child_pid = exited_pids.pop(0)
+            #
+            try:
+                child_siginfo = os.waitid(  # pylint: disable=E1101
+                    os.P_PID, child_pid, os.WEXITED | os.WNOHANG  # pylint: disable=E1101
+                )
+                #
+                if child_siginfo is None:
+                    continue
+                #
+                log.info(
+                    "Reaped child process: %s -> %s -> %s",
+                    child_siginfo.si_pid,
+                    child_siginfo.si_code,
+                    child_siginfo.si_status,
+                )
+            except:  # pylint: disable=W0702
+                continue

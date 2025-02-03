@@ -18,12 +18,16 @@
 """ Core template RPC """
 
 import ssl
+import functools
+
 import arbiter  # pylint: disable=E0401
 
 try:
     from core.tools import log
 except ModuleNotFoundError:
     from pylon.core.tools import log
+
+from pylon.core.tools import db_support
 
 
 class RpcManager:
@@ -35,6 +39,7 @@ class RpcManager:
         rpc_config = self.context.settings.get("rpc", dict())
         rpc_rabbitmq = rpc_config.get("rabbitmq", dict())
         rpc_redis = rpc_config.get("redis", dict())
+        rpc_socketio = rpc_config.get("socketio", dict())
         #
         if rpc_rabbitmq:
             try:
@@ -70,6 +75,7 @@ class RpcManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
+                event_node.start()
         elif rpc_redis:
             try:
                 event_node = arbiter.RedisEventNode(
@@ -87,26 +93,53 @@ class RpcManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
+                event_node.start()
+        elif rpc_socketio:
+            try:
+                event_node = arbiter.SocketIOEventNode(
+                    url=rpc_socketio.get("url"),
+                    password=rpc_socketio.get("password", ""),
+                    room=rpc_socketio.get("room", "events"),
+                    hmac_key=rpc_socketio.get("hmac_key", None),
+                    hmac_digest=rpc_socketio.get("hmac_digest", "sha512"),
+                    callback_workers=rpc_socketio.get("callback_workers", 1),
+                    mute_first_failed_connections=rpc_socketio.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
+                    ssl_verify=rpc_socketio.get("ssl_verify", False),
+                )
+                event_node.start()
+            except:  # pylint: disable=W0702
+                log.exception("Cannot make EventNode instance, using local RPC only")
+                event_node = arbiter.MockEventNode()
+                event_node.start()
         else:
             event_node = arbiter.MockEventNode()
+            event_node.start()
         #
         self.node = arbiter.RpcNode(
             event_node,
-            id_prefix=rpc_config.get("id_prefix", f"{self.context.node_name}_"),
+            id_prefix=rpc_config.get("id_prefix", f"rpc_{self.context.id}_"),
             trace=rpc_config.get("trace", False),
         )
         self.node.start()
         #
         self.call = self.node.proxy
         self.timeout = self.node.timeout
+        #
+        self.partials = {}
 
     def register_function(self, func, name=None):
         """ Register RPC function """
-        self.node.register(func, name)
+        if func not in self.partials:
+            self.partials[func] = functools.partial(invoke_function, func)
+        #
+        self.node.register(self.partials[func], name)
 
     def unregister_function(self, func, name=None):
         """ Unregister RPC function """
-        self.node.unregister(func, name)
+        if func not in self.partials:
+            return
+        #
+        self.node.unregister(self.partials[func], name)
 
     def call_function(self, func, *args, **kvargs):
         """ Run RPC function """
@@ -115,3 +148,12 @@ class RpcManager:
     def call_function_with_timeout(self, func, timeout, *args, **kvargs):
         """ Run RPC function (with timeout) """
         return self.node.call_with_timeout(func, timeout, *args, **kvargs)
+
+
+def invoke_function(function, *args, **kwargs):
+    """ Run function """
+    db_support.create_local_session()
+    try:
+        return function(*args, **kwargs)
+    finally:
+        db_support.close_local_session()

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
 
-#   Copyright 2020 getcarrier.io
+#   Copyright 2022 getcarrier.io
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,13 +15,9 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-""" Pylon tools """
+""" DB tools """
 
 
-# Centry logging + transitional support bits
-from centry_logging import log  # pylint: disable=E0401
-from centry_logging.tools.debug import DebugLogStream  # pylint: disable=E0401
-from centry_logging.filters.string import StringFilter  # pylint: disable=E0401
-#
-log.DebugLogStream = DebugLogStream
-log.Filter = StringFilter
+def sqlalchemy_mapping_to_dict(obj):
+    """ Make dict from sqlalchemy mappings().one() object """
+    return {str(key):value for key, value in dict(obj).items()}

@@ -30,26 +30,21 @@ from pylon.core.tools import log
 from pylon.core.tools import env
 
 
-def register_traefik_route(context):
+def register(context):
     """ Create Traefik route for this Pylon instance """
     context.traefik_redis_keys = list()
     #
-    reloader_used = context.settings.get("server", dict()).get(
-        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
-    )
-    #
-    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    if context.before_reloader:
         log.info("Running in development mode before reloader is started. Skipping registration")
         return
     #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
-        log.error("Cannot register route: no traefik config")
         return
     #
     redis_config = traefik_config.get("redis", dict())
     if not redis_config:
-        log.error("Cannot register route: no redis config")
+        log.warning("Cannot register route: no redis config")
         return
     #
     local_hostname = socket.gethostname()
@@ -68,7 +63,9 @@ def register_traefik_route(context):
     #
     store = StrictRedis(
         host=redis_config.get("host", "localhost"),
+        port=redis_config.get("port", 6379),
         password=redis_config.get("password", None),
+        ssl=redis_config.get("use_ssl", False),
     )
     #
     traefik_rootkey = traefik_config.get("rootkey", "traefik")
@@ -126,32 +123,29 @@ def register_traefik_route(context):
     store.set(f"{traefik_rootkey}/http/routers/{node_name}/service", f"{node_name}")
     context.traefik_redis_keys.append(f"{traefik_rootkey}/http/routers/{node_name}/service")
 
-def unregister_traefik_route(context):
+def unregister(context):
     """ Delete Traefik route for this Pylon instance """
     #
-    reloader_used = context.settings.get("server", dict()).get(
-        "use_reloader", env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
-    )
-    #
-    if context.debug and reloader_used and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    if context.before_reloader:
         log.info("Running in development mode before reloader is started. Skipping unregistration")
         return
     #
     traefik_config = context.settings.get("traefik", dict())
     if not traefik_config:
-        log.error("Cannot unregister route: no traefik config")
         return
     #
     redis_config = traefik_config.get("redis", dict())
     if not redis_config:
-        log.error("Cannot unregister route: no redis config")
+        log.warning("Cannot unregister route: no redis config")
         return
     #
     log.info("Unregistering traefik route for node '%s'", context.node_name)
     #
     store = StrictRedis(
         host=redis_config.get("host", "localhost"),
+        port=redis_config.get("port", 6379),
         password=redis_config.get("password", None),
+        ssl=redis_config.get("use_ssl", False),
     )
     #
     while context.traefik_redis_keys:

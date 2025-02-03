@@ -1,4 +1,8 @@
-#  Copyright (c) 2021 getcarrier.io
+#!/usr/bin/python3
+# coding=utf-8
+# pylint: disable=C0103,C0413
+
+#  Copyright (c) 2021-2025 getcarrier.io
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -12,20 +16,32 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from setuptools import setup, find_packages
+"""
+    Setup script
+"""
 
-with open('requirements.txt') as f:
+with open("requirements.txt", "r", encoding="utf-8") as f:
     required = f.read().splitlines()
 
+version = "1.2"
+try:
+    import subprocess
+    tag = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
+    version = f"{version}+git.{tag.decode('utf-8').strip()}"
+except:  # pylint: disable=W0702
+    pass
+
+from setuptools import setup, find_packages
+
 setup(
-    name='pylon',
-    version='1.1.1',
-    description='Core for plugin based Flask applications',
-    long_description='Lightweight distributed task queue',
-    url='https://getcarrier.io',
-    license='Apache License 2.0',
-    author='LifeDJIK, arozumenko',
-    author_email='ivan_krakhmaliuk@epam.com, artem_rozumenko@epam.com',
+    name="pylon",
+    version=version,
+    description="Core for plugin-based applications",
+    long_description="Application framework with built-in tools for distributed workloads",
+    url="https://getcarrier.io",
+    license="Apache License 2.0",
+    author="LifeDJIK, arozumenko",
+    author_email="ivan_krakhmaliuk@epam.com, artem_rozumenko@epam.com",
     packages=find_packages(),
     install_requires=required
 )

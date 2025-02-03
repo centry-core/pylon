@@ -1,15 +1,30 @@
 FROM --platform=$TARGETPLATFORM python:3.10-alpine
 WORKDIR /usr/src/app
 
-COPY ./ ./pylon
 RUN set -x \
-  && apk add bash vim alpine-sdk git libpq-dev libffi-dev \
-  && pip install --upgrade pip \
-  && pip install --no-cache-dir ./pylon \
-  && rm -r ./pylon
+  && apk add bash dumb-init vim alpine-sdk git libpq-dev libffi-dev curl dos2unix
 
 RUN set -x \
   && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
   && update-ca-certificates
 
-CMD [ "python", "-m", "pylon.main" ]
+ARG PIP_ARGS="--no-cache-dir"
+RUN set -x \
+  && pip install $PIP_ARGS --upgrade pip
+
+COPY ./requirements.txt ./requirements.txt
+RUN set -x \
+  && pip install $PIP_ARGS -r ./requirements.txt \
+  && rm ./requirements.txt
+
+COPY ./ ./pylon
+RUN set -x \
+  && pip install $PIP_ARGS ./pylon \
+  && rm -r ./pylon
+
+COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
+RUN set -x \
+  && dos2unix /usr/local/sbin/entrypoint.sh \
+  && chmod 755 /usr/local/sbin/entrypoint.sh
+
+CMD [ "bash", "/usr/local/sbin/entrypoint.sh" ]

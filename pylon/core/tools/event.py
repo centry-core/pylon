@@ -23,6 +23,7 @@ import functools
 import arbiter  # pylint: disable=E0401
 
 from pylon.core.tools import log
+from pylon.core.tools import db_support
 
 
 class EventManager:
@@ -33,6 +34,7 @@ class EventManager:
         #
         events_rabbitmq = self.context.settings.get("events", dict()).get("rabbitmq", dict())
         events_redis = self.context.settings.get("events", dict()).get("redis", dict())
+        events_socketio = self.context.settings.get("events", dict()).get("socketio", dict())
         #
         if events_rabbitmq:
             try:
@@ -68,6 +70,7 @@ class EventManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local events only")
                 self.node = arbiter.MockEventNode()
+                self.node.start()
         elif events_redis:
             try:
                 self.node = arbiter.RedisEventNode(
@@ -85,15 +88,34 @@ class EventManager:
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local events only")
                 self.node = arbiter.MockEventNode()
+                self.node.start()
+        elif events_socketio:
+            try:
+                self.node = arbiter.SocketIOEventNode(
+                    url=events_socketio.get("url"),
+                    password=events_socketio.get("password", ""),
+                    room=events_socketio.get("room", "events"),
+                    hmac_key=events_socketio.get("hmac_key", None),
+                    hmac_digest=events_socketio.get("hmac_digest", "sha512"),
+                    callback_workers=events_socketio.get("callback_workers", 1),
+                    mute_first_failed_connections=events_socketio.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
+                    ssl_verify=events_socketio.get("ssl_verify", False),
+                )
+                self.node.start()
+            except:  # pylint: disable=W0702
+                log.exception("Cannot make EventNode instance, using local events only")
+                self.node = arbiter.MockEventNode()
+                self.node.start()
         else:
             self.node = arbiter.MockEventNode()
+            self.node.start()
         #
         self.partials = dict()
 
     def register_listener(self, event, listener):
         """ Register event listener """
         if listener not in self.partials:
-            self.partials[listener] = functools.partial(listener, self.context)
+            self.partials[listener] = functools.partial(invoke_listener, listener, self.context)
         self.node.subscribe(event, self.partials[listener])
 
     def unregister_listener(self, event, listener):
@@ -105,3 +127,12 @@ class EventManager:
     def fire_event(self, event, payload=None):
         """ Run listeners for event """
         self.node.emit(event, payload)
+
+
+def invoke_listener(listener, context, *args, **kwargs):
+    """ Run listener """
+    db_support.create_local_session()
+    try:
+        return listener(context, *args, **kwargs)
+    finally:
+        db_support.close_local_session()

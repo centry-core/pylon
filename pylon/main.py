@@ -35,21 +35,32 @@ if not CORE_DEVELOPMENT_MODE and CORE_WEB_RUNTIME == "gevent":
     #
     import psycogreen.gevent  # pylint: disable=E0401
     psycogreen.gevent.patch_psycopg()
+    #
+    import ssl
+    import gevent.hub  # pylint: disable=E0401
+    #
+    hub_not_errors = list(gevent.hub.Hub.NOT_ERROR)
+    hub_not_errors.append(ssl.SSLError)
+    gevent.hub.Hub.NOT_ERROR = tuple(hub_not_errors)
 
 #
 # Normal imports and code below
 #
 
 import os
+import uuid
 import socket
 import signal
+import threading
+import pkg_resources
 
 import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
 
 from pylon.core.tools import log
-from pylon.core.tools import log_syslog
-from pylon.core.tools import log_loki
+from pylon.core.tools import log_support
+from pylon.core.tools import db_support
+from pylon.core.tools import config
 from pylon.core.tools import module
 from pylon.core.tools import event
 from pylon.core.tools import seed
@@ -59,48 +70,123 @@ from pylon.core.tools import ssl
 from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import session
-from pylon.core.tools import traefik
+from pylon.core.tools import external_routing
+from pylon.core.tools import exposure
 
+from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.signal import signal_sigterm
+from pylon.core.tools.signal import kill_remaining_processes
+from pylon.core.tools.signal import ZombieReaper
 from pylon.core.tools.context import Context
+
+from pylon.framework import toolkit
 
 
 def main():  # pylint: disable=R0912,R0914,R0915
     """ Entry point """
-    # Register signal handling
+    #
+    # Phase: bootstrap
+    #
+    # Register signal handling early
     signal.signal(signal.SIGTERM, signal_sigterm)
-    # Enable logging and say hello
-    log.enable_logging()
-    log.info("Starting plugin-based Carrier core")
     # Make context holder
     context = Context()
     # Save debug status
     context.debug = CORE_DEVELOPMENT_MODE
     context.web_runtime = CORE_WEB_RUNTIME
+    # Save runime init
+    context.runtime_init = os.environ.get("PYLON_INIT", "unknown")
+    # Get pylon version
+    try:
+        context.version = pkg_resources.require("pylon")[0].version
+    except:  # pylint: disable=W0702
+        context.version = "unknown"
+    # Enable basic logging and say hello
+    log_support.enable_basic_logging()
+    log.info("Starting plugin-based Carrier/Centry core (version %s)", context.version)
     # Load settings from seed
     log.info("Loading and parsing settings")
     context.settings = seed.load_settings()
     if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
+    # Basic init
+    toolkit.basic_init(context)
+    db_support.basic_init(context)
+    # Tunable pylon settings
+    tunable_settings_data = config.tunable_get("pylon_settings", None)
+    if tunable_settings_data is not None:
+        log.info("Loading and parsing tunable settings")
+        tunable_settings = seed.parse_settings(tunable_settings_data)
+        if tunable_settings:
+            tunable_settings_mode = tunable_settings.get("pylon", {}).get(
+                "tunable_settings_mode", "override"
+            )
+            if tunable_settings_mode == "merge":
+                context.settings = recursive_merge(context.settings, tunable_settings)
+            elif tunable_settings_mode == "update":
+                context.settings.update(tunable_settings)
+            else:
+                context.settings = tunable_settings
+    # Save reloader status
+    context.reloader_used = context.settings.get("server", {}).get(
+        "use_reloader",
+        env.get_var("USE_RELOADER", "true").lower() in ["true", "yes"],
+    )
+    context.before_reloader = \
+            context.debug and \
+            context.reloader_used and \
+            os.environ.get("WERKZEUG_RUN_MAIN", "false").lower() != "true"
+    # Basic de-init in case reloader is used
+    if context.before_reloader:
+        db_support.basic_deinit(context)
+    # Save global node name
+    context.node_name = context.settings.get("server", {}).get("name", socket.gethostname())
+    # Generate pylon ID
+    context.id = f'{context.node_name}_{str(uuid.uuid4())}'
+    log.info("Pylon ID: %s", context.id)
+    # Set process title
+    import setproctitle  # pylint: disable=C0415,E0401
+    setproctitle.setproctitle(f'pylon {context.id}')
     # Set environment overrides (e.g. to add env var with data from vault)
     log.info("Setting environment overrides")
-    for key, value in context.settings.get("environment", dict()).items():
+    for key, value in context.settings.get("environment", {}).items():
         os.environ[key] = value
-    # Save global node name
-    context.node_name = context.settings.get("server", dict()).get("name", socket.gethostname())
+    # Allow to override debug from config (if != gevent in env)
+    if context.web_runtime != "gevent" and "debug" in context.settings.get("server", {}):
+        context.debug = context.settings.get("server").get("debug")
+    # Allow to override runtime from config (if != gevent in env)
+    if context.web_runtime != "gevent" and "runtime" in context.settings.get("server", {}):
+        context.web_runtime = context.settings.get("server").get("runtime")
+    # Reinit logging with full config
+    log_support.reinit_logging(context)
+    # Make stop event
+    context.stop_event = threading.Event()
+    # Initialize local data
+    context.local = threading.local()
+    # Enable zombie reaping
+    if context.settings.get("system", {}).get("zombie_reaping", {}).get("enabled", False):
+        context.zombie_reaper = ZombieReaper(context)
+        context.zombie_reaper.start()
     # Prepare SSL custom cert bundle
     ssl.init(context)
-    # Enable SysLog logging if requested in config
-    log_syslog.enable_syslog_logging(context)
-    # Enable Loki logging if requested in config
-    log_loki.enable_loki_logging(context)
+    # Apply patches needed for pure-python git and providers
+    git.apply_patches()
+    #
+    # Phase: entity instances
+    #
     # Make ModuleManager instance
     log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
     # Make EventManager instance
     log.info("Creating EventManager instance")
     context.event_manager = event.EventManager(context)
+    # Make RpcManager instance
+    log.info("Creating RpcManager instance")
+    context.rpc_manager = rpc.RpcManager(context)
+    #
+    # Phase: WSGI app
+    #
     # Add global URL prefix to context
     server.add_url_prefix(context)
     # Make app instance
@@ -116,30 +202,57 @@ def main():  # pylint: disable=R0912,R0914,R0915
     server.add_middlewares(context)
     # Set application settings
     context.app.config["CONTEXT"] = context
-    context.app.config.from_mapping(context.settings.get("application", dict()))
+    context.app.config.from_mapping(context.settings.get("application", {}))
     # Enable server-side sessions
     session.init_flask_sessions(context)
-    # Make RpcManager instance
-    log.info("Creating RpcManager instance")
-    context.rpc_manager = rpc.RpcManager(context)
+    #
+    # Phase: transitional
+    #
     # Make SlotManager instance
     log.info("Creating SlotManager instance")
     context.slot_manager = slot.SlotManager(context)
-    # Apply patches needed for pure-python git and providers
-    git.apply_patches()
+    #
+    # Phase: modules
+    #
+    # Init framework toolkit
+    toolkit.init(context)
+    # Initialize DB support
+    db_support.init(context)
     # Load and initialize modules
     context.module_manager.init_modules()
-    # Register Traefik route via Redis KV
-    traefik.register_traefik_route(context)
+    context.event_manager.fire_event("pylon_modules_initialized", context.id)
+    #
+    # Phase: exposure
+    #
+    # Register external route
+    external_routing.register(context)
+    # Expose pylon
+    exposure.expose(context)
+    #
+    # Phase: operational
+    #
     # Run WSGI server
     try:
         server.run_server(context)
     finally:
         log.info("WSGI server stopped")
-        # Unregister traefik route
-        traefik.unregister_traefik_route(context)
+        # Set stop event
+        context.stop_event.set()
+        # Unexpose pylon
+        exposure.unexpose(context)
+        # Unregister external route
+        external_routing.unregister(context)
         # De-init modules
         context.module_manager.deinit_modules()
+        # De-initialize DB support
+        db_support.deinit(context)
+    #
+    # Phase: terminate
+    #
+    # Kill remaining processes to avoid keeping the container running on update
+    if context.settings.get("system", {}).get("kill_remaining_processes", True) and \
+            context.runtime_init in ["pylon", "dumb-init"]:
+        kill_remaining_processes(context)
     # Exit
     log.info("Exiting")
 

@@ -2,7 +2,7 @@
 # coding=utf-8
 # pylint: disable=I0011
 
-#   Copyright 2021 getcarrier.io
+#   Copyright 2025 getcarrier.io
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -49,6 +49,11 @@ def load_settings():
     if not settings_data:
         return None
     #
+    return parse_settings(settings_data)
+
+
+def parse_settings(settings_data):
+    """ Parse settings from data """
     try:
         settings = yaml.load(os.path.expandvars(settings_data), Loader=yaml.SafeLoader)
         settings = config.config_substitution(settings, config.vault_secrets(settings))
