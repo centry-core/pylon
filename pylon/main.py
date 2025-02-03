@@ -171,7 +171,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Apply patches needed for pure-python git and providers
     git.apply_patches()
     #
-    # Phase: entity instances
+    # Phase: core entity instances
     #
     # Make AppManager instance
     log.info("Creating AppManager instance")
@@ -179,6 +179,16 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make ModuleManager instance
     log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
+    #
+    # Phase: framework
+    #
+    # Init framework toolkit
+    toolkit.init(context)
+    # Initialize DB support
+    db_support.init(context)
+    #
+    # Phase: entity instances
+    #
     # Make EventManager instance
     log.info("Creating EventManager instance")
     context.event_manager = event.EventManager(context)
@@ -198,10 +208,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: modules
     #
-    # Init framework toolkit
-    toolkit.init(context)
-    # Initialize DB support
-    db_support.init(context)
     # Load and initialize modules
     context.module_manager.init_modules()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)

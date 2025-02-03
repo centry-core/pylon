@@ -25,6 +25,8 @@ import time
 import threading
 import importlib
 
+import flask  # pylint: disable=E0401
+
 import sqlalchemy  # pylint: disable=E0401
 from sqlalchemy.orm import (  # pylint: disable=E0401
     Session,
@@ -121,17 +123,30 @@ def init(context):
     context.db.schema_mapper = lambda schema: schema
     context.db.make_session = make_session_fn(context.db)
     #
-    # App hooks
+    # Local sessions
     #
-    context.app_manager.register_app_hook(lambda app: app.before_request(db_before_request))
-    context.app_manager.register_app_hook(
-        lambda app: app.teardown_appcontext(db_teardown_appcontext)
-    )
-    #
-    # Runtime hooks
-    #
-    eventnode_hooks.before_callback_hooks.append(db_before_request)
-    eventnode_hooks.after_callback_hooks.append(db_teardown_appcontext)
+    if context.db.config.get("auto_local_sessions", True):
+        #
+        # App hooks
+        #
+        context.app_manager.register_app_hook(
+            lambda app: flask.appcontext_pushed.connect(db_app_setup, app)
+        )
+        context.app_manager.register_app_hook(
+            lambda app: app.teardown_appcontext(db_app_teardown)
+        )
+        #
+        context.app_manager.register_app_hook(
+            lambda app: app.before_request(db_app_setup)
+        )
+        context.app_manager.register_app_hook(
+            lambda app: app.teardown_request(db_app_teardown)
+        )
+        #
+        # Runtime hooks
+        #
+        eventnode_hooks.before_callback_hooks.append(db_app_setup)
+        eventnode_hooks.after_callback_hooks.append(db_app_teardown)
 
 
 def deinit(context):
@@ -159,14 +174,14 @@ def deinit(context):
 #
 
 
-def db_before_request(*args, **kwargs):
-    """ Setup request DB session """
+def db_app_setup(*args, **kwargs):
+    """ Setup DB session """
     _ = args, kwargs
     #
     create_local_session()
 
 
-def db_teardown_appcontext(*args, **kwargs):
+def db_app_teardown(*args, **kwargs):
     """ Close request DB session """
     _ = args, kwargs
     #
