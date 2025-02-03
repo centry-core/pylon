@@ -23,7 +23,9 @@
 with open("requirements.txt", "r", encoding="utf-8") as f:
     required = f.read().splitlines()
 
-version = "1.2"
+with open("version.txt", "r", encoding="utf-8") as f:
+    version = f.read().splitlines()[0].strip()
+
 try:
     import subprocess
     tag = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])

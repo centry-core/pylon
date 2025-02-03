@@ -95,12 +95,21 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.debug = env.get_var("DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
     # Get pylon version
     try:
-        context.version = pkg_resources.require("pylon")[0].version
+        context.pylon_version = pkg_resources.require("pylon")[0].version
     except:  # pylint: disable=W0702
-        context.version = "unknown"
+        context.pylon_version = "unknown"
+    # Get arbiter version
+    try:
+        context.arbiter_version = pkg_resources.require("arbiter")[0].version
+    except:  # pylint: disable=W0702
+        context.arbiter_version = "unknown"
     # Enable basic logging and say hello
     log_support.enable_basic_logging()
-    log.info("Starting plugin-based Carrier/Centry core (version %s)", context.version)
+    log.info(
+        "Starting plugin-based Centry core (pylon: %s, arbiter: %s)",
+        context.pylon_version,
+        context.arbiter_version,
+    )
     # Load settings from seed
     log.info("Loading and parsing settings")
     context.settings = seed.load_settings()
