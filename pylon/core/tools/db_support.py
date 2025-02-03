@@ -32,6 +32,8 @@ from sqlalchemy.orm import (  # pylint: disable=E0401
 )
 from sqlalchemy.schema import CreateSchema  # pylint: disable=E0401
 
+from arbiter.eventnode import hooks as eventnode_hooks  # pylint: disable=E0401
+
 from pylon.core.tools import log
 from pylon.core.tools.context import Context
 
@@ -125,6 +127,11 @@ def init(context):
     context.app_manager.register_app_hook(
         lambda app: app.teardown_appcontext(db_teardown_appcontext)
     )
+    #
+    # Runtime hooks
+    #
+    eventnode_hooks.before_callback_hooks.append(db_before_request)
+    eventnode_hooks.after_callback_hooks.append(db_teardown_appcontext)
 
 
 def deinit(context):

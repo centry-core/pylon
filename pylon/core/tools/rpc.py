@@ -27,8 +27,6 @@ try:
 except ModuleNotFoundError:
     from pylon.core.tools import log
 
-from pylon.core.tools import db_support
-
 
 class RpcManager:
     """ RPC manager: register, unregister, call remote functions """
@@ -124,22 +122,14 @@ class RpcManager:
         #
         self.call = self.node.proxy
         self.timeout = self.node.timeout
-        #
-        self.partials = {}
 
     def register_function(self, func, name=None):
         """ Register RPC function """
-        if func not in self.partials:
-            self.partials[func] = functools.partial(invoke_function, func)
-        #
-        self.node.register(self.partials[func], name)
+        self.node.register(func, name)
 
     def unregister_function(self, func, name=None):
         """ Unregister RPC function """
-        if func not in self.partials:
-            return
-        #
-        self.node.unregister(self.partials[func], name)
+        self.node.unregister(func, name)
 
     def call_function(self, func, *args, **kvargs):
         """ Run RPC function """
@@ -148,12 +138,3 @@ class RpcManager:
     def call_function_with_timeout(self, func, timeout, *args, **kvargs):
         """ Run RPC function (with timeout) """
         return self.node.call_with_timeout(func, timeout, *args, **kvargs)
-
-
-def invoke_function(function, *args, **kwargs):
-    """ Run function """
-    db_support.create_local_session()
-    try:
-        return function(*args, **kwargs)
-    finally:
-        db_support.close_local_session()

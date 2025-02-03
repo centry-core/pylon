@@ -23,7 +23,6 @@ import functools
 import arbiter  # pylint: disable=E0401
 
 from pylon.core.tools import log
-from pylon.core.tools import db_support
 
 
 class EventManager:
@@ -115,7 +114,7 @@ class EventManager:
     def register_listener(self, event, listener):
         """ Register event listener """
         if listener not in self.partials:
-            self.partials[listener] = functools.partial(invoke_listener, listener, self.context)
+            self.partials[listener] = functools.partial(listener, self.context)
         self.node.subscribe(event, self.partials[listener])
 
     def unregister_listener(self, event, listener):
@@ -127,12 +126,3 @@ class EventManager:
     def fire_event(self, event, payload=None):
         """ Run listeners for event """
         self.node.emit(event, payload)
-
-
-def invoke_listener(listener, context, *args, **kwargs):
-    """ Run listener """
-    db_support.create_local_session()
-    try:
-        return listener(context, *args, **kwargs)
-    finally:
-        db_support.close_local_session()
