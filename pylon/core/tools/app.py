@@ -235,7 +235,7 @@ class AppManager:  # pylint: disable=R0903
         self.context.app_router = RouterApp(update_path=False)
         app_router = self.context.app_router
         #
-        if self.context.web_runtime in ["waitress", "hypercorn", "uvicorn"]:
+        if self.context.web_runtime in ["waitress", "hypercorn"]:
             app_router = LoggingMiddleware(app_router)
         #
         proxy_settings = self.context.settings.get("server", {}).get("proxy", False)

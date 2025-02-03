@@ -42,14 +42,6 @@ def create_socketio_instance(context):  # pylint: disable=R0914,R0912,R0915
             cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
             **sio_kwargs,
         )
-    elif context.web_runtime == "uvicorn":
-        context.sio_async = SIOPatchedAsyncServer(
-            async_mode="asgi",
-            client_manager=client_manager,
-            cors_allowed_origins=socketio_config.get("cors_allowed_origins", "*"),
-            **sio_kwargs,
-        )
-        context.sio = SIOAsyncProxy(context)
     elif context.web_runtime == "hypercorn":
         context.sio_async = SIOPatchedAsyncServer(
             async_mode="asgi",

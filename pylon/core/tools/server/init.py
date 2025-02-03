@@ -32,7 +32,7 @@ def init_context(context):
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
     #
-    context.is_async = context.web_runtime in ["uvicorn", "hypercorn"]
+    context.is_async = context.web_runtime in ["hypercorn"]
     if context.is_async:
         # Mute "Task exception was never retrieved"
         logging.getLogger("asyncio").setLevel(logging.CRITICAL)

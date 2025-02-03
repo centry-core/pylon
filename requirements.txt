@@ -59,7 +59,6 @@ six==1.16.0
 SQLAlchemy==2.0.29
 toml==0.10.2
 urllib3==1.26.15
-uvicorn==0.34.0
 vine==5.0.0
 waitress==3.0.0
 watchdog==3.0.0
