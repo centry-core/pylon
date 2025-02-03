@@ -17,8 +17,8 @@
 
 """ DB migrations """
 
-import sqlalchemy
-import sqlalchemy.pool
+import sqlalchemy  # pylint: disable=E0401
+import sqlalchemy.pool  # pylint: disable=E0401
 
 import alembic  # pylint: disable=E0401
 import alembic.util  # pylint: disable=E0401

@@ -22,14 +22,14 @@
 
 # from pylon.core.tools import log
 
-routes_registry = dict()  # module -> [routes]  # pylint: disable=C0103
-slots_registry = dict()  # module -> [slots]  # pylint: disable=C0103
-rpcs_registry = dict()  # module -> [rpcs]  # pylint: disable=C0103
-sios_registry = dict()  # module -> [sio]  # pylint: disable=C0103
-events_registry = dict()  # module -> [event]  # pylint: disable=C0103
-methods_registry = dict()  # module -> [method]  # pylint: disable=C0103
-inits_registry = dict()  # module -> [init]  # pylint: disable=C0103
-deinits_registry = dict()  # module -> [deinit]  # pylint: disable=C0103
+routes_registry = {}  # module -> [routes]  # pylint: disable=C0103
+slots_registry = {}  # module -> [slots]  # pylint: disable=C0103
+rpcs_registry = {}  # module -> [rpcs]  # pylint: disable=C0103
+sios_registry = {}  # module -> [sio]  # pylint: disable=C0103
+events_registry = {}  # module -> [event]  # pylint: disable=C0103
+methods_registry = {}  # module -> [method]  # pylint: disable=C0103
+inits_registry = {}  # module -> [init]  # pylint: disable=C0103
+deinits_registry = {}  # module -> [deinit]  # pylint: disable=C0103
 
 
 def route(rule, **options):
@@ -40,7 +40,7 @@ def route(rule, **options):
         endpoint = options.pop("endpoint", None)
         #
         if module not in routes_registry:
-            routes_registry[module] = list()
+            routes_registry[module] = []
         #
         route_item = (rule, endpoint, obj, options)
         routes_registry[module].append(route_item)
@@ -56,7 +56,7 @@ def slot(name):
         module = ".".join(obj.__module__.split(".")[:2])
         #
         if module not in slots_registry:
-            slots_registry[module] = list()
+            slots_registry[module] = []
         #
         slot_item = (name, obj)
         slots_registry[module].append(slot_item)
@@ -72,7 +72,7 @@ def rpc(name=None, proxy_name=None, auto_names=True):
         module = ".".join(obj.__module__.split(".")[:2])
         #
         if module not in rpcs_registry:
-            rpcs_registry[module] = list()
+            rpcs_registry[module] = []
         #
         rpc_item = (name, proxy_name, auto_names, obj)
         rpcs_registry[module].append(rpc_item)
@@ -88,7 +88,7 @@ def sio(name):
         module = ".".join(obj.__module__.split(".")[:2])
         #
         if module not in sios_registry:
-            sios_registry[module] = list()
+            sios_registry[module] = []
         #
         sio_item = (name, obj)
         sios_registry[module].append(sio_item)
@@ -104,7 +104,7 @@ def event(name):
         module = ".".join(obj.__module__.split(".")[:2])
         #
         if module not in events_registry:
-            events_registry[module] = list()
+            events_registry[module] = []
         #
         event_item = (name, obj)
         events_registry[module].append(event_item)
@@ -120,7 +120,7 @@ def method(name=None):
         module = ".".join(obj.__module__.split(".")[:2])
         #
         if module not in methods_registry:
-            methods_registry[module] = list()
+            methods_registry[module] = []
         #
         method_item = (name, obj)
         methods_registry[module].append(method_item)
@@ -136,7 +136,7 @@ def init():
         module = ".".join(obj.__module__.split(".")[:2])
         #
         if module not in inits_registry:
-            inits_registry[module] = list()
+            inits_registry[module] = []
         #
         init_item = obj
         inits_registry[module].append(init_item)
@@ -152,7 +152,7 @@ def deinit():
         module = ".".join(obj.__module__.split(".")[:2])
         #
         if module not in deinits_registry:
-            deinits_registry[module] = list()
+            deinits_registry[module] = []
         #
         deinit_item = obj
         deinits_registry[module].append(deinit_item)

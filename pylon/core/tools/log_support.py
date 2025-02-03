@@ -19,8 +19,6 @@
     Logging support tools
 """
 
-
-
 import logging
 
 from arbiter import log as arbiter_log  # pylint: disable=E0401

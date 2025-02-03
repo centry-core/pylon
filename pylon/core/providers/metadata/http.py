@@ -60,7 +60,7 @@ class Provider(MetadataProviderModel):
 
     def get_multiple_metadata(self, targets):
         """ Get plugins metadata """
-        result = list()
+        result = []
         #
         for target in targets:
             result.append(self.get_metadata(target))

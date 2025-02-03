@@ -32,12 +32,12 @@ set_env_vars = []  # pylint: disable=C0103
 def init(context):  # pylint: disable=R0912,R0914
     """ Create custom CA bundle """
     global custom_ca_bundle  # pylint: disable=W0603,C0103
-    global set_env_vars  # pylint: disable=W0603,C0103
+    global set_env_vars  # pylint: disable=W0603,W0602,C0103
     #
     # Configured locations/certs
     #
-    ssl_config = context.settings.get("ssl", dict())
-    certs = ssl_config.get("certs", list())
+    ssl_config = context.settings.get("ssl", {})
+    certs = ssl_config.get("certs", [])
     #
     if not isinstance(certs, list):
         certs = [certs]
@@ -75,7 +75,7 @@ def init(context):  # pylint: disable=R0912,R0914
                 for root, _, files in os.walk(item):
                     for name in files:
                         try:
-                            with open(os.path.join(root, name), "r") as file:
+                            with open(os.path.join(root, name), "r", encoding="utf-8") as file:
                                 cert_data.append(file.read())
                         except:  # pylint: disable=W0702
                             pass
@@ -83,7 +83,7 @@ def init(context):  # pylint: disable=R0912,R0914
                 pass
         elif os.path.isfile(item):
             try:
-                with open(item, "r") as file:
+                with open(item, "r", encoding="utf-8") as file:
                     cert_data.append(file.read())
             except:  # pylint: disable=W0702
                 pass
@@ -95,7 +95,7 @@ def init(context):  # pylint: disable=R0912,R0914
     output_file_fd, output_file = tempfile.mkstemp()
     os.close(output_file_fd)
     #
-    with open(output_file, "w") as file:
+    with open(output_file, "w", encoding="utf-8") as file:
         file.write("\n".join(cert_data))
     #
     custom_ca_bundle = output_file
@@ -111,7 +111,7 @@ def init(context):  # pylint: disable=R0912,R0914
 def deinit():
     """ Remove custom CA bundle at runtime exit """
     global custom_ca_bundle  # pylint: disable=W0603,C0103
-    global set_env_vars  # pylint: disable=W0603,C0103
+    global set_env_vars  # pylint: disable=W0603,W0602,C0103
     #
     if custom_ca_bundle is not None and os.path.exists(custom_ca_bundle):
         try:

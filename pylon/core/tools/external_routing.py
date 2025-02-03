@@ -20,35 +20,33 @@
     Traefik tools
 """
 
-import os
 import socket
 
 from redis import StrictRedis  # pylint: disable=E0401
 
 from pylon.core import constants
 from pylon.core.tools import log
-from pylon.core.tools import env
 
 
 def register(context):
     """ Create Traefik route for this Pylon instance """
-    context.traefik_redis_keys = list()
+    context.traefik_redis_keys = []
     #
     if context.before_reloader:
         log.info("Running in development mode before reloader is started. Skipping registration")
         return
     #
-    traefik_config = context.settings.get("traefik", dict())
+    traefik_config = context.settings.get("traefik", {})
     if not traefik_config:
         return
     #
-    redis_config = traefik_config.get("redis", dict())
+    redis_config = traefik_config.get("redis", {})
     if not redis_config:
         log.warning("Cannot register route: no redis config")
         return
     #
     local_hostname = socket.gethostname()
-    local_port = context.settings.get("server", dict()).get("port", constants.SERVER_DEFAULT_PORT)
+    local_port = context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT)
     #
     node_name = context.node_name
     #
@@ -130,11 +128,11 @@ def unregister(context):
         log.info("Running in development mode before reloader is started. Skipping unregistration")
         return
     #
-    traefik_config = context.settings.get("traefik", dict())
+    traefik_config = context.settings.get("traefik", {})
     if not traefik_config:
         return
     #
-    redis_config = traefik_config.get("redis", dict())
+    redis_config = traefik_config.get("redis", {})
     if not redis_config:
         log.warning("Cannot unregister route: no redis config")
         return

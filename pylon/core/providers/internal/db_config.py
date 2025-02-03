@@ -17,8 +17,6 @@
 
 """ DBConfigProvider """
 
-# from pylon.core.tools import log
-
 from pylon.core.providers.config import ConfigProviderModel
 from pylon.framework.db.models.plugin_config import PluginConfig
 

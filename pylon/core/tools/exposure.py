@@ -22,7 +22,6 @@
     Exposure tools
 """
 
-import os
 import io
 import sys
 import time
@@ -34,7 +33,6 @@ import flask  # pylint: disable=E0401
 import arbiter  # pylint: disable=E0401
 
 from pylon.core.tools import log
-from pylon.core.tools import env
 from pylon.core.tools.context import Context
 
 

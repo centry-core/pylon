@@ -64,7 +64,7 @@ class Provider(PluginsProviderModel):
         ]
         #
         if exclude is None:
-            exclude = list()
+            exclude = []
         #
         for item in exclude:
             if item in plugins:
@@ -89,4 +89,4 @@ class Provider(PluginsProviderModel):
                 metadata = json.load(file)
             return metadata
         except:  # pylint: disable=W0702
-            return dict()
+            return {}

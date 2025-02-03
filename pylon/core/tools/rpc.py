@@ -18,14 +18,10 @@
 """ Core template RPC """
 
 import ssl
-import functools
 
 import arbiter  # pylint: disable=E0401
 
-try:
-    from core.tools import log
-except ModuleNotFoundError:
-    from pylon.core.tools import log
+from pylon.core.tools import log
 
 
 class RpcManager:
@@ -34,10 +30,10 @@ class RpcManager:
     def __init__(self, context):
         self.context = context
         #
-        rpc_config = self.context.settings.get("rpc", dict())
-        rpc_rabbitmq = rpc_config.get("rabbitmq", dict())
-        rpc_redis = rpc_config.get("redis", dict())
-        rpc_socketio = rpc_config.get("socketio", dict())
+        rpc_config = self.context.settings.get("rpc", {})
+        rpc_rabbitmq = rpc_config.get("rabbitmq", {})
+        rpc_redis = rpc_config.get("redis", {})
+        rpc_socketio = rpc_config.get("socketio", {})
         #
         if rpc_rabbitmq:
             try:

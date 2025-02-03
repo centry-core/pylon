@@ -21,8 +21,6 @@ import os
 import json
 import shutil
 
-# from pylon.core.tools import log
-
 from . import RequirementsProviderModel
 
 

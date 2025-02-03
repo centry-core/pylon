@@ -66,7 +66,7 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
 
     def get_multiple_source(self, targets):
         """ Get plugins source """
-        result = list()
+        result = []
         #
         for target in targets:
             result.append(self.get_source(target))

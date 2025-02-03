@@ -46,7 +46,7 @@ class SlotManager:
     def register_callback(self, slot, callback):
         """ Register slot callback """
         #
-        name_path = list()
+        name_path = []
         name_path.append(self.context.node_name)
         name_path.append(callback.__module__)
         name_path.append(callback.__class__.__name__)
@@ -81,7 +81,7 @@ class SlotManager:
 
     def run_slot(self, slot, payload=None):
         """ Run callbacks for slot """
-        result = list()
+        result = []
         if slot not in self.callbacks:
             return ""
         for callback in self.callbacks[slot]:
@@ -105,7 +105,7 @@ class SlotManager:
         log.debug("New slot callback: %s - %s", event_payload["slot"], event_payload["callback"])
         #
         if event_payload["slot"] not in self.callbacks:
-            self.callbacks[event_payload["slot"]] = list()
+            self.callbacks[event_payload["slot"]] = []
         if event_payload["callback"] not in self.callbacks[event_payload["slot"]]:
             self.callbacks[event_payload["slot"]].append(event_payload["callback"])
 

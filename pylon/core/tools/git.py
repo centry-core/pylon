@@ -115,7 +115,7 @@ def patched_paramiko_client_SSHClient_auth(original_auth):  # pylint: disable=C0
         if isinstance(key_filenames, list) and len(key_filenames) == 1 and \
                 isinstance(key_filenames[0], paramiko.RSAKey):
             target_pkey = key_filenames[0]
-            target_key_filenames = list()
+            target_key_filenames = []
             return original_auth(
                 self,
                 username, password, target_pkey, target_key_filenames, allow_agent, look_for_keys,
@@ -123,7 +123,7 @@ def patched_paramiko_client_SSHClient_auth(original_auth):  # pylint: disable=C0
             )
         if isinstance(key_filenames, paramiko.RSAKey):
             target_pkey = key_filenames
-            target_key_filenames = list()
+            target_key_filenames = []
             return original_auth(
                 self,
                 username, password, target_pkey, target_key_filenames, allow_agent, look_for_keys,
@@ -144,7 +144,7 @@ def clone(  # pylint: disable=R0913,R0912,R0914,R0915
 ):
     """ Clone repository """
     # Prepare auth args
-    auth_args = dict()
+    auth_args = {}
     if username is not None:
         auth_args["username"] = username
     if password is not None:

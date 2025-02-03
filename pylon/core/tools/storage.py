@@ -31,7 +31,7 @@ from pylon.core.tools.minio import MinIOHelper
 
 def list_modules(settings):
     """ List modules in storage """
-    modules = list()
+    modules = []
     minio = MinIOHelper.get_client(settings["storage"])
     for obj in minio.list_objects(settings["storage"]["buckets"]["module"]):
         obj_name = obj.object_name
@@ -42,11 +42,13 @@ def list_modules(settings):
 
 def list_development_modules(settings):
     """ List modules in storage """
-    modules = list()
+    modules = []
     modules_path = os.environ.get("MODULES_PATH", settings["development"]["modules"])
     for obj in os.listdir(modules_path):
         obj_path = os.path.join(modules_path, obj)
-        if os.path.isdir(obj_path) and not obj.startswith(".") and not obj.startswith('__pycache__'):
+        if os.path.isdir(obj_path) and \
+                not obj.startswith(".") and \
+                not obj.startswith('__pycache__'):
             modules.append(obj)
     return modules
 
@@ -76,7 +78,8 @@ def get_development_config(settings, name):
     """ Get config from storage """
     config_path = os.environ.get("PYLON_CONFIG_PATH", settings["development"]["config"])
     try:
-        config_data = open(os.path.join(config_path, f"{name}.yml"), "rb").read()
+        with open(os.path.join(config_path, f"{name}.yml"), "rb") as file:
+            config_data = file.read()
         yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
         return config_substitution(yaml_data, vault_secrets(settings))
     except:  # pylint: disable=W0702

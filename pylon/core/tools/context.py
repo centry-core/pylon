@@ -22,7 +22,7 @@ class Context:
     """ Application context holder """
 
     def __init__(self):
-        self.__dict__["_context"] = dict()
+        self.__dict__["_context"] = {}
 
     def __getattr__(self, name):
         if name not in self._context:

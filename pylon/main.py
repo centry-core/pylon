@@ -51,9 +51,6 @@ import signal
 import threading
 import pkg_resources
 
-import flask  # pylint: disable=E0401
-import flask_restful  # pylint: disable=E0401
-
 from pylon.core.tools import log
 from pylon.core.tools import log_support
 from pylon.core.tools import db_support

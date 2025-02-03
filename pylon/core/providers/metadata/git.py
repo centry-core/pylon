@@ -75,7 +75,7 @@ class Provider(MetadataProviderModel):  # pylint: disable=R0902
 
     def get_multiple_metadata(self, targets):
         """ Get plugins metadata """
-        result = list()
+        result = []
         #
         for target in targets:
             result.append(self.get_metadata(target))

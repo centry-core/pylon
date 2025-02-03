@@ -31,9 +31,9 @@ class EventManager:
     def __init__(self, context):
         self.context = context
         #
-        events_rabbitmq = self.context.settings.get("events", dict()).get("rabbitmq", dict())
-        events_redis = self.context.settings.get("events", dict()).get("redis", dict())
-        events_socketio = self.context.settings.get("events", dict()).get("socketio", dict())
+        events_rabbitmq = self.context.settings.get("events", {}).get("rabbitmq", {})
+        events_redis = self.context.settings.get("events", {}).get("redis", {})
+        events_socketio = self.context.settings.get("events", {}).get("socketio", {})
         #
         if events_rabbitmq:
             try:
@@ -109,7 +109,7 @@ class EventManager:
             self.node = arbiter.MockEventNode()
             self.node.start()
         #
-        self.partials = dict()
+        self.partials = {}
 
     def register_listener(self, event, listener):
         """ Register event listener """

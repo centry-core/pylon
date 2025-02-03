@@ -22,7 +22,7 @@
 
 def recursive_merge(dict_a, dict_b):
     """ Merge dictionaries recursively """
-    result = dict()
+    result = {}
     for key in set(list(dict_a.keys()) + list(dict_b.keys())):
         if key not in dict_a:
             result[key] = dict_b[key]

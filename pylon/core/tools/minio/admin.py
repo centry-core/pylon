@@ -58,7 +58,7 @@ class MinIOAdminAuth(requests.auth.AuthBase):  # pylint: disable=R0903
     def __call__(self, request):
         headers = minio.signer.sign_v4(
             request.method, request.url.replace("https://", "http://"),
-            "", dict(),
+            "", {},
             self.credentials,
             minio.helpers.get_sha256_hexdigest(request.body)
         )
@@ -148,7 +148,7 @@ class MinIOAdmin:
             self.endpoint + "/update-group-members",
             data=json.dumps({
                 "group": group,
-                "members": members if members is not None else list(),
+                "members": members if members is not None else [],
                 "isRemove": remove
             }),
             auth=self.auth, verify=self.verify, cert=self.cert
