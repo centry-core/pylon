@@ -44,7 +44,11 @@ def profiling_stop(context, stage):
         stats_stream = io.StringIO()
         #
         profile_stats = pstats.Stats(context.profiling["profile"][stage], stream=stats_stream)
-        profile_stats.sort_stats(pstats.SortKey.FILENAME, pstats.SortKey.NAME, pstats.SortKey.TIME)
+        profile_stats.sort_stats(
+            *context.profiling.get("sort", [
+                pstats.SortKey.FILENAME, pstats.SortKey.NAME, pstats.SortKey.LINE,
+            ]),
+        )
         profile_stats.print_stats()
         #
         log.info("Profile stats: %s\n%s", stage, stats_stream.getvalue())

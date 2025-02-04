@@ -136,13 +136,6 @@ def init(context):
             lambda app: app.teardown_appcontext(db_app_teardown)
         )
         #
-        context.app_manager.register_app_hook(
-            lambda app: app.before_request(db_app_setup)
-        )
-        context.app_manager.register_app_hook(
-            lambda app: app.teardown_request(db_app_teardown)
-        )
-        #
         # Runtime hooks
         #
         eventnode_hooks.before_callback_hooks.append(db_app_setup)
