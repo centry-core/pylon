@@ -137,6 +137,15 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
         with self._pylon_emit_lock:
             return super().emit(*args, **kwargs)
 
+    def remove_handler(self, event, namespace=None):
+        """ Remove handler """
+        namespace = namespace or "/"
+        #
+        if namespace not in self.handlers:
+            return
+        #
+        self.handlers.pop(event, None)
+
     def _trigger_event(self, event, namespace, *args):
         """ Call *any* handlers first """
         db_support.create_local_session()
@@ -259,6 +268,15 @@ class SIOAsyncProxy:  # pylint: disable=R0903
             handler = self._async_handlers[handler]
         #
         return self.context.sio_async.on(event, handler, namespace)
+
+    def remove_handler(self, event, namespace=None):
+        """ Remove handler """
+        namespace = namespace or "/"
+        #
+        if namespace not in self.context.sio_async.handlers:
+            return
+        #
+        self.context.sio_async.handlers.pop(event, None)
 
     async def _async_emit(self, *args, **kwargs):
         """ Proxy method """

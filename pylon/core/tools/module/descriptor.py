@@ -61,6 +61,12 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         #
         self.url_prefix = f"{self.context.url_prefix}/{self.name}"
         self.app = self.context.app_manager.make_app_instance(f"plugins.{self.name}")
+        self.blueprint = None
+        #
+        self.registered_slots = []
+        self.registered_rpcs = []
+        self.registered_sios = []
+        self.registered_events = []
 
     def load_config(self):
         """ Load custom (or default) configuration """
@@ -141,6 +147,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                 result_blueprint.jinja_loader = jinja2.loaders.PackageLoader(
                     f"plugins.{self.name}", "templates"
                 )
+        #
+        self.blueprint = result_blueprint
         #
         return result_blueprint
 
@@ -300,10 +308,14 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         slots = web.slots_registry.pop(f"plugins.{self.name}", [])
         for slot in slots:
             name, obj = slot
+            #
             if module_slots:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
                 obj.__module__ = obj.func.__module__
+            #
+            registered_entity = (name, obj)
+            self.registered_slots.append(registered_entity)
             self.context.slot_manager.register_callback(name, obj)
 
     def init_rpcs(self, module_rpcs=True):
@@ -352,6 +364,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                 except:  # pylint: disable=W0702
                     log.exception("Failed to get callable name for: %s", obj)
             #
+            registered_entity = (obj, name)
+            self.registered_rpcs.append(registered_entity)
             self.context.rpc_manager.register_function(obj, name)
             #
             if proxy_name is not None and name is not None:
@@ -399,9 +413,13 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         sios = web.sios_registry.pop(f"plugins.{self.name}", [])
         for sio in sios:
             name, obj = sio
+            #
             if module_sios:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
+            #
+            registered_entity = (name, obj)
+            self.registered_sios.append(registered_entity)
             self.context.sio.on(name, handler=obj)
 
     def init_events(self, module_events=True):
@@ -433,10 +451,14 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         events = web.events_registry.pop(f"plugins.{self.name}", [])
         for event in events:
             name, obj = event
+            #
             if module_events:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
                 obj.__module__ = obj.func.__module__
+            #
+            registered_entity = (name, obj)
+            self.registered_events.append(registered_entity)
             self.context.event_manager.register_listener(name, obj)
 
     def init_methods(self, module_methods=True):
@@ -593,6 +615,17 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
             url_prefix, static_url_prefix, use_template_prefix, register_in_app, module_routes
         )
 
+    def deinit_blueprint(self):
+        """ Remove app/api hooks """
+        for hook_uuid in self.context.app_manager.module_app_refs.get(self.name, []):
+            self.context.app_manager.unregister_app_hook(hook_uuid)
+        #
+        for hook_uuid in self.context.app_manager.module_api_refs.get(self.name, []):
+            self.context.app_manager.unregister_api_hook(hook_uuid)
+        #
+        if self.context.app_router.map.get(f'{self.url_prefix.rstrip("/")}/', None) == self.app:
+            self.context.app_router.map.pop(f'{self.url_prefix.rstrip("/")}/', None)
+
     def deinit_deinits(self, module_deinits=True):
         """ Run all decorated deinits from this module """
         # NB: Deinits are loaded by init_methods()
@@ -603,12 +636,37 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
             else:
                 deinit()
 
+    def deinit_sio(self):
+        """ Remove event listeners """
+        for name, _ in self.registered_sios:
+            self.context.sio.remove_handler(name)
+
+    def deinit_slots(self):
+        """ Remove event listeners """
+        for name, obj in self.registered_slots:
+            self.context.slot_manager.unregister_callback(name, obj)
+
+    def deinit_events(self):
+        """ Remove event listeners """
+        for name, obj in self.registered_events:
+            self.context.event_manager.unregister_listener(name, obj)
+
+    def deinit_rpcs(self):
+        """ Remove RPC handlers """
+        for obj, name in self.registered_rpcs:
+            self.context.rpc_manager.unregister_function(obj, name)
+
     def deinit_all(  # pylint: disable=R0913
             self,
             module_deinits=True
         ):
         """ Shortcut to perform fast basic deinit of this module services """
+        self.deinit_blueprint()
         self.deinit_deinits(module_deinits)
+        self.deinit_sio()
+        self.deinit_slots()
+        self.deinit_events()
+        self.deinit_rpcs()
 
     def template_name(self, name, module=None):
         """ Make prefixed template name """

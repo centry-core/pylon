@@ -30,6 +30,8 @@ class SlotManager:
     def __init__(self, context):
         self.context = context
         self.callbacks = {}
+        #
+        self.partials = {}
         self.local_callbacks = []  # (slot, callback_name)
         #
         self.context.app_manager.register_app_hook(
@@ -53,8 +55,12 @@ class SlotManager:
         name_path.append(callback.__name__)
         #
         callback_name = "_".join(name_path).replace(".", "_")
+        #
+        if callback not in self.partials:
+            self.partials[callback] = functools.partial(callback, self.context)
+        #
         self.context.rpc_manager.register_function(
-            functools.partial(callback, self.context), callback_name
+            self.partials[callback], callback_name
         )
         #
         self.context.event_manager.fire_event(
@@ -64,20 +70,32 @@ class SlotManager:
                 "callback": callback_name,
             }
         )
-        #
-        self.local_callbacks.append(
-            (slot, callback_name),
-        )
 
     def unregister_callback(self, slot, callback):
         """ Unregister slot callback """
-        # TODO: unregister slots
         #
-        # if slot not in self.callbacks:
-        #     return
-        # if callback not in self.callbacks[slot]:
-        #     return
-        # self.callbacks[slot].remove(callback)
+        name_path = []
+        name_path.append(self.context.node_name)
+        name_path.append(callback.__module__)
+        name_path.append(callback.__class__.__name__)
+        name_path.append(callback.__name__)
+        #
+        callback_name = "_".join(name_path).replace(".", "_")
+        #
+        if callback not in self.partials:
+            return
+        #
+        self.context.rpc_manager.unregister_function(
+            self.partials[callback], callback_name
+        )
+        #
+        self.context.event_manager.fire_event(
+            "unregister_slot_callback",
+            {
+                "slot": slot,
+                "callback": callback_name,
+            }
+        )
 
     def run_slot(self, slot, payload=None):
         """ Run callbacks for slot """

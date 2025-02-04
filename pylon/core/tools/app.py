@@ -29,6 +29,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import session
+from pylon.core.tools.module.this import caller_module_name
 
 from .server.socketio import create_socketio_instance
 from .server.waitress import WaitressSocket
@@ -36,7 +37,7 @@ from .server.logging import LoggingMiddleware
 from .app_shim import AppShim
 
 
-class AppManager:  # pylint: disable=R0903
+class AppManager:  # pylint: disable=R0903,R0902
     """ App manager: manages app instances """
 
     def __init__(self, context):
@@ -49,6 +50,9 @@ class AppManager:  # pylint: disable=R0903
         #
         self.app_hooks = {}
         self.api_hooks = {}
+        #
+        self.module_app_refs = {}
+        self.module_api_refs = {}
         #
         self.lock = threading.Lock()
 
@@ -74,7 +78,7 @@ class AppManager:  # pylint: disable=R0903
         self._add_api_instance()
         # AppShim
         self.context.app = AppShim(self.context)
-        # FIXME: render_template
+        # FIXME: check render_template or somehow purge global loader?
 
     def make_app_instance(self, *args, **kwargs):
         """ Make flask app instance """
@@ -143,6 +147,13 @@ class AppManager:  # pylint: disable=R0903
             #
             self.app_hooks[hook_uuid] = hook_lambda
             #
+            module_name = caller_module_name()
+            #
+            if module_name not in self.module_app_refs:
+                self.module_app_refs[module_name] = []
+            #
+            self.module_app_refs[module_name].append(hook_uuid)
+            #
             for app in self.managed_apps:
                 hook_lambda(app)
             #
@@ -152,8 +163,6 @@ class AppManager:  # pylint: disable=R0903
         """ Unregister app creation hook """
         with self.lock:
             self.app_hooks.pop(hook_uuid, None)
-            #
-            # TODO: remove from apps?
 
     def register_api_hook(self, hook_lambda):
         """ Register api creation hook """
@@ -164,6 +173,13 @@ class AppManager:  # pylint: disable=R0903
                     break
             #
             self.api_hooks[hook_uuid] = hook_lambda
+            #
+            module_name = caller_module_name()
+            #
+            if module_name not in self.module_api_refs:
+                self.module_api_refs[module_name] = []
+            #
+            self.module_api_refs[module_name].append(hook_uuid)
             #
             hook_lambda(self.managed_api)
             #
