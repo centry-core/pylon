@@ -67,6 +67,7 @@ from pylon.core.tools import slot
 from pylon.core.tools import server
 from pylon.core.tools import external_routing
 from pylon.core.tools import exposure
+from pylon.core.tools import profiling
 
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.signal import signal_sigterm
@@ -176,6 +177,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     ssl.init(context)
     # Apply patches needed for pure-python git and providers
     git.apply_patches()
+    # Save profiling settings
+    context.profiling = context.settings.get("system", {}).get("profiling", {})
     #
     # Phase: core entity instances
     #
@@ -214,9 +217,13 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: modules
     #
+    # Enable profiling: init
+    profiling.profiling_start(context, "init")
     # Load and initialize modules
     context.module_manager.init_modules()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)
+    # Print profile stats: init
+    profiling.profiling_stop(context, "init")
     #
     # Phase: exposure
     #
@@ -227,19 +234,27 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: operational
     #
+    # Enable profiling: run
+    profiling.profiling_start(context, "run")
     # Run A/WSGI server
     try:
         server.run_server(context)
     finally:
         log.info("A/WSGI server stopped")
+        # Print profile stats: run
+        profiling.profiling_stop(context, "run")
         # Set stop event
         context.stop_event.set()
         # Unexpose pylon
         exposure.unexpose(context)
         # Unregister external route
         external_routing.unregister(context)
+        # Enable profiling: deinit
+        profiling.profiling_start(context, "deinit")
         # De-init modules
         context.module_manager.deinit_modules()
+        # Print profile stats: deinit
+        profiling.profiling_stop(context, "deinit")
         # De-initialize DB support
         db_support.deinit(context)
     #

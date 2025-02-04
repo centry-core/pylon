@@ -219,6 +219,12 @@ class SIOAsyncProxy:  # pylint: disable=R0903
         self.__sync_trigger_event = asgiref.sync.AsyncToSync(
             self.context.sio_async.pylon_trigger_event
         )
+        self.__sync_enter_room = asgiref.sync.AsyncToSync(
+            self.context.sio_async.enter_room
+        )
+        self.__sync_leave_room = asgiref.sync.AsyncToSync(
+            self.context.sio_async.leave_room
+        )
 
     @staticmethod
     def _in_async():
@@ -265,11 +271,11 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def enter_room(self, *args, **kwargs):
         """ Proxy method """
-        return self.context.sio_async.enter_room(*args, **kwargs)
+        return self.__sync_enter_room(*args, **kwargs)
 
     def leave_room(self, *args, **kwargs):
         """ Proxy method """
-        return self.context.sio_async.leave_room(*args, **kwargs)
+        return self.__sync_leave_room(*args, **kwargs)
 
     def pylon_trigger_event(self, event, namespace, *args):
         """ Call original handlers """

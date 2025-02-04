@@ -347,9 +347,9 @@ def prepare_rpc_environ(wsgi_environ):
     for key in drop_keys:
         result.pop(key, None)
     #
-    if not result["wsgi.input"].closed and result["wsgi.input"].readable():
+    try:
         result["wsgi.input"] = result["wsgi.input"].read()
-    else:
+    except:  # pylint: disable=W0702
         result["wsgi.input"] = b""
     #
     return result

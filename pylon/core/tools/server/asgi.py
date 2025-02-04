@@ -20,9 +20,30 @@
 from pylon.core.tools import log
 
 
+async def lifespan_app(scope, receive, send):
+    """ Dummy no-op lifespan app """
+    _ = scope
+    #
+    while True:
+        message = await receive()
+        #
+        if message["type"] == "lifespan.startup":
+            await send({
+                "type": "lifespan.startup.complete",
+            })
+        #
+        elif message["type"] == "lifespan.shutdown":
+            await send({
+                "type": "lifespan.shutdown.complete",
+            })
+            return
+
+
 async def noop_app(scope, receive, send):
     """ Dummy app that always returns 404 """
-    _ = scope, receive
+    if scope["type"] == "lifespan":
+        await lifespan_app(scope, receive, send)
+        return
     #
     await send({
         "type": "http.response.start",
@@ -40,7 +61,9 @@ async def noop_app(scope, receive, send):
 
 async def ok_app(scope, receive, send):
     """ Dummy app that always returns 200 """
-    _ = scope, receive
+    if scope["type"] == "lifespan":
+        await lifespan_app(scope, receive, send)
+        return
     #
     await send({
         "type": "http.response.start",

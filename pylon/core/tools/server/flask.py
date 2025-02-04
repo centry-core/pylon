@@ -29,6 +29,7 @@ def run_server(context):
         hostname=context.settings.get("server", {}).get("host", constants.SERVER_DEFAULT_HOST),
         port=context.settings.get("server", {}).get("port", constants.SERVER_DEFAULT_PORT),
         application=context.root_router,
+        threaded=context.settings.get("server", {}).get("threaded", True),
         use_debugger=context.debug,
         use_reloader=context.reloader_used,
         reloader_interval=context.settings.get("server", {}).get(

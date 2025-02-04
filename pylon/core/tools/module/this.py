@@ -25,6 +25,20 @@ from pylon.core.tools import db_support
 from pylon.core.tools.context import Context
 
 
+def caller_module_name():
+    """ Find closest caller module """
+    module_name = None
+    #
+    for frame_info in inspect.stack():
+        caller_module = frame_info.frame.f_globals["__name__"]
+        #
+        if caller_module.startswith("plugins."):
+            module_name = caller_module.split(".")[1]
+            break
+    #
+    return module_name
+
+
 class This:  # pylint: disable=R0903
     """ Module-specific tools/helpers """
 
@@ -35,14 +49,7 @@ class This:  # pylint: disable=R0903
         self.__lock = threading.Lock()
 
     def __getattr__(self, name):
-        module_name = None
-        #
-        for frame_info in inspect.stack():
-            caller_module = frame_info.frame.f_globals["__name__"]
-            #
-            if caller_module.startswith("plugins."):
-                module_name = caller_module.split(".")[1]
-                break
+        module_name = caller_module_name()
         #
         if module_name is None:
             raise RuntimeError("Caller is not a pylon module")

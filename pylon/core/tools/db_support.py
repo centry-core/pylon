@@ -312,85 +312,74 @@ def check_local_entities():
     """ Validate or set entities in local """
     from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    # Check and create lock first
+    check_entities = {
+        "db_session": None,
+        "db_session_refs": 0,
+    }
     #
-    if "db_lock" not in context.local.__dict__:
-        setattr(context.local, "db_lock", threading.Lock())
-    #
-    with context.local.db_lock:
-        #
-        # Check entities
-        #
-        check_entities = {
-            "db_session": None,
-            "db_session_refs": 0,
-        }
-        #
-        for key, default in check_entities.items():
-            if key not in context.local.__dict__:
-                setattr(context.local, key, default)
+    for key, default in check_entities.items():
+        if key not in context.local.__dict__:
+            setattr(context.local, key, default)
 
 
 def create_local_session():
     """ Create and configure session, save in local """
     from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    # Check local entities
+    # Create DB session if needed
     #
-    check_local_entities()
-    #
-    with context.local.db_lock:
-        #
-        # Create DB session if needed
-        #
+    try:
         if context.local.db_session is None:
-            context.local.db_session = context.db.make_session()
-        #
-        # Increment refs count
+            context.local.db_session = LazyLocalSession(context)
         #
         context.local.db_session_refs += 1
+    except:  # pylint: disable=W0702
+        context.local.db_session = LazyLocalSession(context)
+        context.local.db_session_refs = 1
 
 
 def close_local_session():
     """ Finalize and close local session """
     from tools import context  # pylint: disable=E0401,C0411,C0415
     #
-    # Check local entities
+    # Get session / check present / lazy
     #
-    check_local_entities()
-    #
-    with context.local.db_lock:
-        #
-        # Decrement refs count
-        #
-        if context.local.db_session_refs > 0:
-            context.local.db_session_refs -= 1
-        #
-        if context.local.db_session_refs > 0:
-            return  # We are in 'inner' close, leave session untouched
-        #
-        context.local.db_session_refs = 0
-        #
-        # Close session
-        #
+    try:
         session = context.local.db_session
-        #
-        if session is None:
-            return  # Closed or broken elsewhere
-        #
-        context.local.db_session = None
-        #
-        try:
-            if session.is_active:
-                try:
-                    session.commit()
-                except:  # pylint: disable=W0702
-                    session.rollback()
-                    raise
-            else:
+    except:  # pylint: disable=W0702
+        return
+    #
+    # Decrement refs count
+    #
+    if context.local.db_session_refs > 0:
+        context.local.db_session_refs -= 1
+    #
+    if context.local.db_session_refs > 0:
+        return  # We are in 'inner' close, leave session untouched
+    #
+    context.local.db_session_refs = 0
+    #
+    # Close session
+    #
+    if session is None:
+        return  # Closed or broken elsewhere
+    #
+    context.local.db_session = None
+    #
+    if isinstance(session, LazyLocalSession):
+        return
+    #
+    try:
+        if session.is_active:
+            try:
+                session.commit()
+            except:  # pylint: disable=W0702
                 session.rollback()
-        finally:
-            session.close()
+                raise
+        else:
+            session.rollback()
+    finally:
+        session.close()
 
 
 class local_session:  # pylint: disable=C0103
@@ -405,6 +394,26 @@ class local_session:  # pylint: disable=C0103
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         close_local_session()
+
+
+class LazyLocalSessionMeta(type):
+    """ Local session lazy meta class """
+
+    def __getattr__(cls, name):
+        log.info("LazyLocalSession.cls.__getattr__(%s)", name)
+
+
+class LazyLocalSession(metaclass=LazyLocalSessionMeta):  # pylint: disable=R0903
+    """ Local session lazy maker """
+
+    def __init__(self, context):
+        self.context = context
+
+    def __getattr__(self, name):
+        if isinstance(self.context.local.db_session, LazyLocalSession):
+            self.context.local.db_session = self.context.db.make_session()
+        #
+        return getattr(self.context.local.db_session, name)
 
 
 #

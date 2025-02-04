@@ -68,7 +68,7 @@ PyNaCl==1.5.0
 
 # Flask
 Flask==2.2.5
-# Werkzeug==2.3.8
+Werkzeug==2.3.8
 blinker==1.9.0
 #
 itsdangerous==2.2.0
