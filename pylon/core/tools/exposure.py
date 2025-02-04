@@ -347,7 +347,10 @@ def prepare_rpc_environ(wsgi_environ):
     for key in drop_keys:
         result.pop(key, None)
     #
-    result["wsgi.input"] = result["wsgi.input"].read()
+    if not result["wsgi.input"].closed and result["wsgi.input"].readable():
+        result["wsgi.input"] = result["wsgi.input"].read()
+    else:
+        result["wsgi.input"] = b""
     #
     return result
 
