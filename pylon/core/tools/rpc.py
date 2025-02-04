@@ -65,11 +65,9 @@ class RpcManager:
                     ssl_server_hostname=ssl_server_hostname,
                     mute_first_failed_connections=rpc_rabbitmq.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                 )
-                event_node.start()
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
-                event_node.start()
         elif rpc_redis:
             try:
                 event_node = arbiter.RedisEventNode(
@@ -83,11 +81,9 @@ class RpcManager:
                     mute_first_failed_connections=rpc_redis.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                     use_ssl=rpc_redis.get("use_ssl", False),
                 )
-                event_node.start()
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
-                event_node.start()
         elif rpc_socketio:
             try:
                 event_node = arbiter.SocketIOEventNode(
@@ -100,14 +96,11 @@ class RpcManager:
                     mute_first_failed_connections=rpc_socketio.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                     ssl_verify=rpc_socketio.get("ssl_verify", False),
                 )
-                event_node.start()
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")
                 event_node = arbiter.MockEventNode()
-                event_node.start()
         else:
             event_node = arbiter.MockEventNode()
-            event_node.start()
         #
         self.node = arbiter.RpcNode(
             event_node,
@@ -118,6 +111,10 @@ class RpcManager:
         #
         self.call = self.node.proxy
         self.timeout = self.node.timeout
+
+    def shutdown(self):
+        """ Stop """
+        self.node.stop()
 
     def register_function(self, func, name=None):
         """ Register RPC function """

@@ -48,7 +48,7 @@ idna==3.10
 charset-normalizer==3.4.1
 
 # KV, broker
-redis==5.2.1
+redis==4.6.0
 pika==1.3.2
 #
 aio-pika==9.5.4

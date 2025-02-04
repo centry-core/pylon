@@ -111,6 +111,10 @@ class EventManager:
         #
         self.partials = {}
 
+    def shutdown(self):
+        """ Stop """
+        self.node.stop()
+
     def register_listener(self, event, listener):
         """ Register event listener """
         if listener not in self.partials:

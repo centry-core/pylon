@@ -135,10 +135,13 @@ class SlotManager:
                 log.error("Invalid slot unregistration data, skipping")
                 return
         #
+        log.debug("Delete slot callback: %s - %s", event_payload["slot"], event_payload["callback"])
+        #
         if event_payload["slot"] not in self.callbacks:
             return
         if event_payload["callback"] not in self.callbacks[event_payload["slot"]]:
             return
+        #
         self.callbacks[event_payload["slot"]].remove(event_payload["callback"])
 
 
