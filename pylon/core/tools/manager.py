@@ -127,6 +127,7 @@ class Manager:  # pylint: disable=R0903,R0902
                 db_support.create_local_session()
                 try:
                     module_obj.init()
+                    module_obj.ready()
                 finally:
                     db_support.close_local_session()
                 #
