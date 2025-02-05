@@ -66,6 +66,8 @@ class ModuleManager:  # pylint: disable=R0902
         #
         self.descriptor = ModuleDescriptorProxy(self)
         self.module = ModuleProxy(self)
+        #
+        self.load_order = []
 
     def init_modules(self):
         """ Load and init modules """
@@ -410,6 +412,8 @@ class ModuleManager:  # pylint: disable=R0902
             #
             self.modules[module_descriptor.name] = module_descriptor
             module_descriptor.activated = True
+            #
+            self.load_order.append(module_descriptor.name)
 
     def deinit_modules(self):
         """ De-init and unload modules """
