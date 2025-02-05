@@ -55,6 +55,8 @@ class AppManager:  # pylint: disable=R0903,R0902
         self.module_api_refs = {}
         #
         self.lock = threading.Lock()
+        #
+        self.can_run_hooks = True
 
     def init_hierarchy(self):
         """ Init A/WSGI app hierarchy """
@@ -67,15 +69,15 @@ class AppManager:  # pylint: disable=R0903,R0902
         # Root router
         self.context.root_router = RouterApp()
         # Health endpoints
-        self._add_health_endpoints()
+        self.add_health_endpoints()
         # SocketIO
-        self._add_socketio_app()
+        self.add_socketio_app()
         # App router
-        self._add_app_router()
+        self.add_app_router()
         # Session store
         self.session_store = session.make_session_store(self.context)
         # API
-        self._add_api_instance()
+        self.add_api_instance()
         # AppShim
         self.context.app = AppShim(self.context)
         # FIXME: check render_template or somehow purge global loader?
@@ -89,7 +91,7 @@ class AppManager:  # pylint: disable=R0903,R0902
         #
         KVSessionExtension(self.session_store, app)
         #
-        app.url_build_error_handlers.append(self._url_build_error_handler(app))
+        app.url_build_error_handlers.append(self.url_build_error_handler(app))
         #
         with self.lock:
             hooks = list(self.app_hooks.values())
@@ -100,7 +102,8 @@ class AppManager:  # pylint: disable=R0903,R0902
             self.managed_apps.append(app)
             return app
 
-    def _url_build_error_handler(self, app):
+    def url_build_error_handler(self, app):
+        """ Redirect URL building to correct app """
         _app = app
         #
         def _handler(error, endpoint, values):
@@ -154,8 +157,9 @@ class AppManager:  # pylint: disable=R0903,R0902
             #
             self.module_app_refs[module_name].append(hook_uuid)
             #
-            for app in self.managed_apps:
-                hook_lambda(app)
+            if self.can_run_hooks:
+                for app in self.managed_apps:
+                    hook_lambda(app)
             #
             return hook_uuid
 
@@ -181,7 +185,8 @@ class AppManager:  # pylint: disable=R0903,R0902
             #
             self.module_api_refs[module_name].append(hook_uuid)
             #
-            hook_lambda(self.managed_api)
+            if self.can_run_hooks:
+                hook_lambda(self.managed_api)
             #
             return hook_uuid
 
@@ -190,7 +195,8 @@ class AppManager:  # pylint: disable=R0903,R0902
         with self.lock:
             self.api_hooks.pop(hook_uuid, None)
 
-    def _add_health_endpoints(self):
+    def add_health_endpoints(self):
+        """ Create health endpoints """
         health_config = self.context.settings.get("server", {}).get("health", {})
         health_log = health_config.get("log", False)
         #
@@ -210,7 +216,8 @@ class AppManager:  # pylint: disable=R0903,R0902
                 if not health_log:
                     self.context.server_log_filter.filter_strings.append(f"GET /{endpoint}")
 
-    def _add_socketio_app(self):
+    def add_socketio_app(self):
+        """ Create SIO """
         log.info("Creating SocketIO instance")
         #
         create_socketio_instance(self.context)
@@ -245,7 +252,8 @@ class AppManager:  # pylint: disable=R0903,R0902
             for method in ["GET", "POST"]:
                 self.context.server_log_filter.filter_strings.append(f"{method} {socketio_route}")
 
-    def _add_app_router(self):
+    def add_app_router(self):
+        """ Create router """
         from .server.wsgi import RouterApp  # pylint: disable=C0415
         #
         self.context.app_router = RouterApp(update_path=False)
@@ -283,7 +291,8 @@ class AppManager:  # pylint: disable=R0903,R0902
         #
         self.context.root_router.map[app_route] = app_router
 
-    def _add_api_instance(self):
+    def add_api_instance(self):
+        """ Create API """
         log.info("Creating API instance")
         #
         api_app = self.make_app_instance("pylon")

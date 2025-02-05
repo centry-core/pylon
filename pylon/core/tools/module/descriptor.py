@@ -62,6 +62,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         self.url_prefix = f"{self.context.url_prefix}/{self.name}"
         self.app = self.context.app_manager.make_app_instance(f"plugins.{self.name}")
         self.blueprint = None
+        self.router_path = None
         #
         self.registered_slots = []
         self.registered_rpcs = []
@@ -196,7 +197,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         #
         if register_in_app:
             self.app.register_blueprint(result_blueprint)
-            self.context.app_router.map[f'{self.url_prefix.rstrip("/")}/'] = self.app
+            self.router_path = f'{self.url_prefix.rstrip("/")}/'
+            self.context.app_router.map[self.router_path] = self.app
         #
         return result_blueprint
 
@@ -623,8 +625,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         for hook_uuid in self.context.app_manager.module_api_refs.get(self.name, []):
             self.context.app_manager.unregister_api_hook(hook_uuid)
         #
-        if self.context.app_router.map.get(f'{self.url_prefix.rstrip("/")}/', None) == self.app:
-            self.context.app_router.map.pop(f'{self.url_prefix.rstrip("/")}/', None)
+        if self.context.app_router.map.get(self.router_path, None) == self.app:
+            self.context.app_router.map.pop(self.router_path, None)
 
     def deinit_deinits(self, module_deinits=True):
         """ Run all decorated deinits from this module """

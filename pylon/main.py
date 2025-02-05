@@ -49,6 +49,7 @@ import uuid
 import socket
 import signal
 import threading
+import traceback
 import pkg_resources
 
 from pylon.core.tools import log
@@ -68,6 +69,7 @@ from pylon.core.tools import server
 from pylon.core.tools import external_routing
 from pylon.core.tools import exposure
 from pylon.core.tools import profiling
+from pylon.core.tools import manager
 
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.signal import signal_sigterm
@@ -208,6 +210,11 @@ def main():  # pylint: disable=R0912,R0914,R0915
     log.info("Creating SlotManager instance")
     context.slot_manager = slot.SlotManager(context)
     #
+    # Phase: pylon manager
+    #
+    log.info("Creating Manager instance")
+    context.manager = manager.Manager(context)
+    #
     # Phase: A/WSGI apps
     #
     # Add server-related data
@@ -239,6 +246,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Run A/WSGI server
     try:
         server.run_server(context)
+    except:  # pylint: disable=W0702
+        log.debug("Stopping on exception:\n%s", traceback.format_exc())
     finally:
         log.info("A/WSGI server stopped")
         # Print profile stats: run
@@ -260,12 +269,15 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: terminate
     #
+    # Flush logs here
+    log.info("Exiting")
+    log.flush()
     # Kill remaining processes to avoid keeping the container running on update
     if context.settings.get("system", {}).get("kill_remaining_processes", True) and \
             context.runtime_init in ["pylon", "dumb-init"]:
         kill_remaining_processes(context)
     # Exit
-    log.info("Exiting")
+    log.shutdown()
 
 
 if __name__ == "__main__":

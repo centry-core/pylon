@@ -25,16 +25,19 @@ from pylon.core.tools import db_support
 from pylon.core.tools.context import Context
 
 
-def caller_module_name():
+def caller_module_name(skip=0):
     """ Find closest caller module """
     module_name = None
+    to_skip = skip
     #
     for frame_info in inspect.stack():
         caller_module = frame_info.frame.f_globals["__name__"]
         #
-        if caller_module.startswith("plugins."):
+        if caller_module.startswith("plugins.") and to_skip <= 0:
             module_name = caller_module.split(".")[1]
             break
+        #
+        to_skip -= 1
     #
     return module_name
 
