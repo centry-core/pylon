@@ -357,7 +357,17 @@ def prepare_rpc_environ(wsgi_environ):
 
 def prepare_call_environ(wsgi_environ):
     """ Prepare environ for local wsgi_call """
+    from tools import context  # pylint: disable=E0401,C0411,C0415
+    #
     result = dict(wsgi_environ)
+    #
+    app_path = result["PATH_INFO"]
+    #
+    if context.url_prefix and app_path.startswith(context.url_prefix):
+        app_path = app_path[len(context.url_prefix):]
+        #
+        result["PATH_INFO"] = app_path
+        result["SCRIPT_NAME"] = context.url_prefix
     #
     result["wsgi.errors"] = sys.stderr
     result["wsgi.input"] = io.BytesIO(result["wsgi.input"])

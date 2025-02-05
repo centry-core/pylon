@@ -59,7 +59,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         self.prepared = False
         self.activated = False
         #
-        self.url_prefix = f"{self.context.url_prefix}/{self.name}"
+        self.url_prefix = f"/{self.name}"
         self.app = self.context.app_manager.make_app_instance(f"plugins.{self.name}")
         self.blueprint = None
         self.router_path = None
@@ -119,16 +119,13 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
             template_folder = "templates"
         #
         if url_prefix is not None:
-            self.url_prefix = f'{self.context.url_prefix}/{url_prefix.lstrip("/")}'
+            self.url_prefix = url_prefix
         #
         static_folder = None
         if self.loader.has_directory("static"):
             static_folder = "static"
             if static_url_prefix is None:
                 static_url_prefix = "static"
-        #
-        if static_url_prefix is not None:
-            static_url_prefix = f'{self.context.url_prefix}/{static_url_prefix.lstrip("/")}'
         #
         result_blueprint = flask.Blueprint(
             self.name, f"plugins.{self.name}",
