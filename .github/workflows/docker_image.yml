@@ -37,12 +37,3 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           platforms: linux/amd64,linux/arm64
           push: true
-
-      - name: Build and push Alpine
-        uses: docker/build-push-action@v4
-        with:
-          tags: ${{ inputs.docker_tag }}-alpine
-          builder: ${{ steps.buildx.outputs.name }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          file: Dockerfile.alpine
