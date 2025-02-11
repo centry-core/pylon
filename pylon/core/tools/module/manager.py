@@ -297,21 +297,16 @@ class ModuleManager:  # pylint: disable=R0902
             with open(requirements_txt, "wb") as file:
                 file.write(module_descriptor.requirements.encode())
             #
-            if self.providers["requirements"].requirements_exist(module_name, cache_hash):
-                requirements_base = \
-                    self.providers["requirements"].get_requirements(
-                        module_name, cache_hash, self.temporary_objects,
-                    )
-            else:
-                requirements_base = tempfile.mkdtemp()
-                self.temporary_objects.append(requirements_base)
+            if not self.providers["requirements"].requirements_exist(module_name, cache_hash):
+                requirements_install_base = tempfile.mkdtemp()
+                self.temporary_objects.append(requirements_install_base)
                 #
                 log.info("Installing requirements for: %s", module_descriptor.name)
                 #
                 try:
                     self.install_requirements(
                         requirements_path=requirements_txt,
-                        target_site_base=requirements_base,
+                        target_site_base=requirements_install_base,
                         additional_site_paths=module_site_paths,
                         constraint_paths=module_constraint_paths,
                     )
@@ -320,7 +315,12 @@ class ModuleManager:  # pylint: disable=R0902
                     continue
                 #
                 self.providers["requirements"].add_requirements(
-                    module_name, cache_hash, requirements_base,
+                    module_name, cache_hash, requirements_install_base,
+                )
+            #
+            requirements_base = \
+                self.providers["requirements"].get_requirements(
+                    module_name, cache_hash, self.temporary_objects,
                 )
             #
             requirements_path = self.get_user_site_path(requirements_base)
