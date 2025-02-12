@@ -22,13 +22,17 @@
 class ModuleModel:
     """ Module model """
 
-    # def __init__(self, context, descriptor):
+    def __init__(self, context, descriptor):
+        self.context = context
+        self.descriptor = descriptor
 
     def init(self):
         """ Initialize module """
+        self.descriptor.init_all()
 
     def deinit(self):
         """ De-initialize module """
+        self.descriptor.deinit_all()
 
     def ready(self):
         """ Ready callback """
@@ -36,8 +40,12 @@ class ModuleModel:
     def unready(self):
         """ Unready callback """
 
-    # def install(self):
-    #     """ Install handler """
+    def reconfig(self):
+        """ Re-config module """
+        self.descriptor.load_config()
+
+    def install(self):
+        """ Install handler """
 
     # def uninstall(self):
     #     """ Uninstall handler """

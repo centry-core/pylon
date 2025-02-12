@@ -265,6 +265,8 @@ class ModuleManager:  # pylint: disable=R0902
             )
             # Preload config
             module_descriptor.load_config()
+            # Preload state
+            module_descriptor.load_state()
             #
             module_descriptors.append(module_descriptor)
             self.descriptors[module_name] = module_descriptor
@@ -400,12 +402,15 @@ class ModuleManager:  # pylint: disable=R0902
                 )
                 module_descriptor.module = module_obj
                 #
-                db_support.create_local_session()
-                try:
+                with db_support.local_session():
                     module_obj.init()
-                finally:
-                    db_support.close_local_session()
                 #
+                if not module_descriptor.state.get("installed", False):
+                    with db_support.local_session():
+                        module_obj.install()
+                    #
+                    module_descriptor.state["installed"] = True
+                    module_descriptor.save_state()
             except:  # pylint: disable=W0702
                 log.exception("Failed to enable module: %s", module_descriptor.name)
                 continue

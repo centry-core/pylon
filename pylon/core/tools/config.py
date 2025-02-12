@@ -140,7 +140,7 @@ def tunable_set(tunable, value):
     from tools import context  # pylint: disable=C0415,E0401
     from pylon.framework.db.models.tunable_value import TunableValue  # pylint: disable=C0415
     #
-    with context.pylon_db.make_session() as db_session:
+    with context.pylon_db.make_session() as db_session, db_session.begin():
         tunable_obj = db_session.query(TunableValue).get(tunable)
         #
         if tunable_obj is None:
@@ -153,12 +153,6 @@ def tunable_set(tunable, value):
         else:
             tunable_obj.value = value
         #
-        try:
-            db_session.commit()
-        except:  # pylint: disable=W0702
-            db_session.rollback()
-            raise
-        #
         return None
 
 
@@ -167,16 +161,10 @@ def tunable_delete(tunable):
     from tools import context  # pylint: disable=C0415,E0401
     from pylon.framework.db.models.tunable_value import TunableValue  # pylint: disable=C0415
     #
-    with context.pylon_db.make_session() as db_session:
+    with context.pylon_db.make_session() as db_session, db_session.begin():
         tunable_obj = db_session.query(TunableValue).get(tunable)
         #
         if tunable_obj is not None:
             db_session.delete(tunable_obj)
-            #
-            try:
-                db_session.commit()
-            except:  # pylint: disable=W0702
-                db_session.rollback()
-                raise
         #
         return None

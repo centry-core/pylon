@@ -34,6 +34,8 @@ from pylon.core.tools import process
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.config import config_substitution, vault_secrets
 
+from . import state
+
 
 class ModuleDescriptor:  # pylint: disable=R0902,R0904
     """ Module descriptor """
@@ -48,6 +50,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         self.path = self.loader.get_local_path()
         self.config = None
         self.config_data = None
+        #
+        self.state = {}
         #
         self.requirements_base = None
         self.requirements_path = None
@@ -111,6 +115,14 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         """ Save custom config """
         config_data = yaml.dump(self.config).encode()
         self.context.module_manager.providers["config"].add_config_data(self.name, config_data)
+
+    def load_state(self):
+        """ Load plugin state """
+        self.state = state.get(self.name)
+
+    def save_state(self):
+        """ Save plugin state """
+        state.set(self.name, self.state)
 
     def make_blueprint(self, url_prefix=None, static_url_prefix=None, use_template_prefix=True):
         """ Make configured Blueprint instance """
