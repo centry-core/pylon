@@ -46,7 +46,7 @@ def get(plugin, default={}):
         if state_obj is None:
             return default.copy()
         #
-        return json.loads(state_obj.value)
+        return json.loads(state_obj.state)
 
 
 def set(plugin, value):
@@ -61,12 +61,12 @@ def set(plugin, value):
         if state_obj is None:
             state_obj = PluginState(
                 plugin=plugin,
-                value=value_bin,
+                state=value_bin,
             )
             #
             db_session.add(state_obj)
         else:
-            state_obj.value = value_bin
+            state_obj.state = value_bin
         #
         return None
 
