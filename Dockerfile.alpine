@@ -19,7 +19,9 @@ RUN set -x \
 
 COPY ./ ./pylon
 RUN set -x \
-  && pip install $PIP_ARGS ./pylon \
+  && cd ./pylon \
+  && pip install $PIP_ARGS . \
+  && cd .. \
   && rm -r ./pylon
 
 COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
