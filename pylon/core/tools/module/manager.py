@@ -278,6 +278,9 @@ class ModuleManager:  # pylint: disable=R0902
             cache_hash_chunks = []
             module_site_paths = []
             module_constraint_paths = []
+            #
+            pylon_requirements_hash = hashlib.sha256(self.context.pylon_requirements.encode()).hexdigest()
+            cache_hash_chunks.append(pylon_requirements_hash)
         else:
             cache_hash_chunks, module_site_paths, module_constraint_paths = prepared_items
         #

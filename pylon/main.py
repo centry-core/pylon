@@ -93,10 +93,13 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.web_runtime = CORE_WEB_RUNTIME
     context.runtime_init = env.get_var("INIT", "unknown")
     context.debug = env.get_var("DEVELOPMENT_MODE", "").lower() in ["true", "yes"]
-    # Get pylon version
+    # Get pylon version + requirements
     try:
-        context.pylon_version = pkg_resources.require("pylon")[0].version
+        pylon_pkg = pkg_resources.require("pylon")[0]
+        context.pylon_requirements = "\n".join(str(req) for req in pylon_pkg.requires())
+        context.pylon_version = pylon_pkg.version
     except:  # pylint: disable=W0702
+        context.pylon_requirements = ""
         context.pylon_version = "unknown"
     # Get arbiter version
     try:
