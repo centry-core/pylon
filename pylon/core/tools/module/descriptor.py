@@ -73,6 +73,10 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         self.registered_sios = []
         self.registered_events = []
 
+    #
+    # Config and state
+    #
+
     def load_config(self):
         """ Load custom (or default) configuration """
         #
@@ -123,6 +127,10 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
     def save_state(self):
         """ Save plugin state """
         state.set(self.name, self.state)
+
+    #
+    # Init
+    #
 
     def make_blueprint(self, url_prefix=None, static_url_prefix=None, use_template_prefix=True):
         """ Make configured Blueprint instance """
@@ -555,12 +563,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
 
     def init_db(self):
         """ Load and initialize DB support """
-        # Local imports
-        from tools import this  # pylint: disable=E0401,C0415
-        from pylon.framework.db import db_migrations  # pylint: disable=C0415
         # Step: load models
         module_pkg = self.loader.module_name
-        module_name = module_pkg.split(".")[1]
         #
         if self.loader.has_directory("db/models"):
             for model_resource in importlib.resources.contents(
@@ -583,22 +587,6 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                         resource_name,
                     )
                     continue
-        # Step: create entities
-        module_this = this.for_module(module_name)
-        module_this.db.metadata.create_all(bind=self.context.db.engine)
-        #
-        db_namespace_helper = module_this.spaces.get("db_namespace_helper", None)
-        if db_namespace_helper is not None:
-            db_namespaces = db_namespace_helper.get_namespaces()
-            #
-            for db_namespace_name in module_this.db.ns_used:
-                db_namespace = db_namespaces[db_namespace_name]
-                db_namespace.metadata.create_all(bind=self.context.db.engine)
-        # Step: run migrations
-        if self.loader.has_directory("db/migrations"):
-            db_migrations.run_db_migrations(self.module, self.context.db.url)
-        # TODO: Step: run automigrations
-        # TODO: Schema support (e.g. module.db.schema.models)
 
     def init_all(  # pylint: disable=R0913
             self,
@@ -625,6 +613,45 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         return self.init_blueprint(
             url_prefix, static_url_prefix, use_template_prefix, register_in_app, module_routes
         )
+
+    #
+    # Install
+    #
+
+    def install_db(self):
+        """ Perform DB install actions """
+        # Local imports
+        from tools import this  # pylint: disable=E0401,C0415
+        from pylon.framework.db import db_migrations  # pylint: disable=C0415
+        #
+        module_pkg = self.loader.module_name
+        module_name = module_pkg.split(".")[1]
+        # Step: create entities
+        module_this = this.for_module(module_name)
+        module_this.db.metadata.create_all(bind=self.context.db.engine)
+        #
+        db_namespace_helper = module_this.spaces.get("db_namespace_helper", None)
+        if db_namespace_helper is not None:
+            db_namespaces = db_namespace_helper.get_namespaces()
+            #
+            for db_namespace_name in module_this.db.ns_used:
+                db_namespace = db_namespaces[db_namespace_name]
+                db_namespace.metadata.create_all(bind=self.context.db.engine)
+        # Step: run migrations
+        if self.loader.has_directory("db/migrations"):
+            db_migrations.run_db_migrations(self.module, self.context.db.url)
+        # TODO: Step: run automigrations
+        # TODO: Schema support (e.g. module.db.schema.models)
+
+    def install_all(  # pylint: disable=R0913
+            self,
+        ):
+        """ Shortcut to perform fast basic install of this module services """
+        self.install_db()
+
+    #
+    # De-init
+    #
 
     def deinit_blueprint(self):
         """ Remove app/api hooks """
@@ -678,6 +705,10 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         self.deinit_slots()
         self.deinit_events()
         self.deinit_rpcs()
+
+    #
+    # Tools
+    #
 
     def template_name(self, name, module=None):
         """ Make prefixed template name """

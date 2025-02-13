@@ -46,6 +46,7 @@ class ModuleModel:
 
     def install(self):
         """ Install handler """
+        self.descriptor.install_all()
 
     # def uninstall(self):
     #     """ Uninstall handler """
