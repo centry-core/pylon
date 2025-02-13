@@ -34,11 +34,9 @@ RUN set -x \
   && pip install $PIP_ARGS -r ./requirements.txt \
   && rm ./requirements.txt
 
-COPY ./ ./pylon
+COPY ./ ./.git ./pylon/
 RUN set -x \
-  && cd ./pylon \
-  && pip install $PIP_ARGS . \
-  && cd .. \
+  && pip install $PIP_ARGS ./pylon \
   && rm -r ./pylon
 
 COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
