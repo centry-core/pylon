@@ -18,7 +18,7 @@
 # pylint: disable=C0116
 """ App compatibility shim """
 
-from jinja2 import BaseLoader, TemplateNotFound  # pylint: disable=E0401
+import jinja2  # pylint: disable=E0401
 
 from pylon.core.tools import log
 
@@ -105,24 +105,76 @@ class AppShim(metaclass=AppShimMeta):  # pylint: disable=R0903
         return _decorator
 
 
-class ShimLoader(BaseLoader):
+class ShimLoader(jinja2.BaseLoader):
     """ Shim template loader """
 
-    def __init__(self, context):
+    def __init__(self, context, app):
         self.context = context
+        self.app = app
 
     def get_source(self, environment, template):
-        if ":" not in template:
-            raise TemplateNotFound(template)
+        """ Shim method """
+        if ":" in template:
+            module_name = template.split(":")[0]
+            return self._get_source_from_module(module_name, environment, template)
         #
-        module_name = template.split(":")[0]
+        apps = []
+        apps.append(self.app)
+        for app in self.context.app_manager.managed_apps:
+            if app not in apps:
+                apps.append(app)
         #
+        for app in apps:
+            try:
+                return self._get_source_from_app(app, environment, template)
+            except jinja2.TemplateNotFound:
+                continue
+        #
+        raise jinja2.TemplateNotFound(template)
+
+    def _get_source_from_module(self, module_name, environment, template):
         if module_name not in self.context.module_manager.descriptors:
-            raise TemplateNotFound(template)
+            raise jinja2.TemplateNotFound(template)
         #
         target_app = self.context.module_manager.descriptors[module_name].app
         #
         if target_app is None:
-            raise TemplateNotFound(template)
+            raise jinja2.TemplateNotFound(template)
         #
-        return target_app.jinja_loader.get_source(environment, template)
+        return self._get_source_from_app(target_app, environment, template)
+
+    def _get_source_from_app(self, app, environment, template):
+        for blueprint in app.iter_blueprints():
+            blueprint_loader = blueprint.jinja_loader
+            #
+            if blueprint_loader is None:
+                continue
+            #
+            try:
+                return blueprint_loader.get_source(environment, template)
+            except jinja2.TemplateNotFound:
+                continue
+        #
+        raise jinja2.TemplateNotFound(template)
+
+    def list_templates(self):
+        """ Shim method """
+        result = set()
+        #
+        apps = []
+        apps.append(self.app)
+        for app in self.context.app_manager.managed_apps:
+            if app not in apps:
+                apps.append(app)
+        #
+        for app in apps:
+            for blueprint in app.iter_blueprints():
+                blueprint_loader = blueprint.jinja_loader
+                #
+                if blueprint_loader is None:
+                    continue
+                #
+                for template in blueprint_loader.list_templates():
+                    result.add(template)
+        #
+        return list(result)

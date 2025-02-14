@@ -24,7 +24,6 @@ import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
 import socketio  # pylint: disable=E0401
 
-from jinja2 import ChoiceLoader  # pylint: disable=E0401
 from flask_kvsession import KVSessionExtension  # pylint: disable=E0401
 from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
@@ -81,8 +80,6 @@ class AppManager:  # pylint: disable=R0903,R0902
         self.add_api_instance()
         # AppShim
         self.context.app = AppShim(self.context)
-        # ShimLoader
-        self.template_loader = ShimLoader(self.context)
 
     def make_app_instance(self, *args, **kwargs):
         """ Make flask app instance """
@@ -94,11 +91,7 @@ class AppManager:  # pylint: disable=R0903,R0902
         KVSessionExtension(self.session_store, app)
         #
         app.url_build_error_handlers.append(self.url_build_error_handler(app))
-        #
-        app.jinja_loader = ChoiceLoader([
-            app.jinja_loader,
-            self.template_loader,
-        ])
+        app.jinja_loader = ShimLoader(self.context, app)
         #
         with self.lock:
             hooks = list(self.app_hooks.values())
