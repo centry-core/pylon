@@ -158,13 +158,18 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         #
         if template_folder is not None:
             if use_template_prefix:
-                result_blueprint.jinja_loader = jinja2.PrefixLoader({
+                jinja_loader = jinja2.PrefixLoader({
                     self.name: jinja2.loaders.PackageLoader(f"plugins.{self.name}", "templates"),
                 }, delimiter=":")
             else:
-                result_blueprint.jinja_loader = jinja2.loaders.PackageLoader(
+                jinja_loader = jinja2.loaders.PackageLoader(
                     f"plugins.{self.name}", "templates"
                 )
+            #
+            result_blueprint.jinja_loader = jinja2.ChoiceLoader([
+                jinja_loader,
+                self.context.app_manager.template_loader,
+            ])
         #
         self.blueprint = result_blueprint
         #
