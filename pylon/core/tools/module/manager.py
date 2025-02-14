@@ -443,6 +443,8 @@ class ModuleManager:  # pylint: disable=R0902
             except:  # pylint: disable=W0702
                 pass
         #
+        # TODO: should we save plugin state after deinit automatically?
+        #
         self._deinit_providers()
         #
         for obj in self.temporary_objects:

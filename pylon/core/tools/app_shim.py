@@ -18,6 +18,8 @@
 # pylint: disable=C0116
 """ App compatibility shim """
 
+from jinja2 import BaseLoader, TemplateNotFound  # pylint: disable=E0401
+
 from pylon.core.tools import log
 
 
@@ -27,11 +29,6 @@ class AppShimMeta(type):
     def __getattr__(cls, name):
         log.debug("AppShim.cls.__getattr__(%s)", name)
         raise RuntimeError("Not supported")
-
-
-#
-# TODO: save hook_uuids in module descriptor for deinit
-#
 
 
 class AppShim(metaclass=AppShimMeta):  # pylint: disable=R0903
@@ -106,3 +103,26 @@ class AppShim(metaclass=AppShimMeta):  # pylint: disable=R0903
             return _decorate
         #
         return _decorator
+
+
+class ShimLoader(BaseLoader):
+    """ Shim template loader """
+
+    def __init__(self, context):
+        self.context = context
+
+    def get_source(self, environment, template):
+        if ":" not in template:
+            raise TemplateNotFound(template)
+        #
+        module_name = template.split(":")[0]
+        #
+        if module_name not in self.context.module_manager.descriptors:
+            raise TemplateNotFound(template)
+        #
+        target_app = self.context.module_manager.descriptors[module_name].app
+        #
+        if target_app is None:
+            raise TemplateNotFound(template)
+        #
+        return target_app.jinja_loader.get_source(environment, template)
