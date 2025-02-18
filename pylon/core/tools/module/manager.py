@@ -303,8 +303,13 @@ class ModuleManager:  # pylint: disable=R0902
                 file.write(module_descriptor.requirements.encode())
             #
             if not self.providers["requirements"].requirements_exist(module_name, cache_hash):
-                requirements_install_base = tempfile.mkdtemp()
-                self.temporary_objects.append(requirements_install_base)
+                requirements_install_base = self.providers["requirements"].get_requirements(
+                    module_name, None, self.temporary_objects,
+                )
+                #
+                if requirements_install_base is None:
+                    requirements_install_base = tempfile.mkdtemp()
+                    self.temporary_objects.append(requirements_install_base)
                 #
                 log.info("Installing requirements for: %s", module_descriptor.name)
                 #

@@ -31,11 +31,11 @@ class RequirementsProviderModel:
         """ De-initialize provider """
         raise NotImplementedError()
 
-    def requirements_exist(self, plugin_name, cache_hash):
+    def requirements_exist(self, plugin_name, cache_hash=None):
         """ Check if plugin requirements exist """
         raise NotImplementedError()
 
-    def get_requirements(self, plugin_name, cache_hash, temporary_objects=None):
+    def get_requirements(self, plugin_name, cache_hash=None, temporary_objects=None):
         """ Get plugin requirements (a.k.a user site data) """
         raise NotImplementedError()
 

@@ -40,9 +40,13 @@ class Provider(RequirementsProviderModel):
     def deinit(self):
         """ De-initialize provider """
 
-    def requirements_exist(self, plugin_name, cache_hash):
+    def requirements_exist(self, plugin_name, cache_hash=None):
         """ Check if plugin requirements exist """
         requirements_path = os.path.join(self.path, plugin_name)
+        #
+        if cache_hash is None:
+            return os.path.exists(requirements_path)
+        #
         requirements_meta_path = os.path.join(self.path, f"{plugin_name}.json")
         #
         if os.path.exists(requirements_meta_path):
@@ -53,7 +57,7 @@ class Provider(RequirementsProviderModel):
         #
         return os.path.exists(requirements_path) and requirements_meta["cache_hash"] == cache_hash
 
-    def get_requirements(self, plugin_name, cache_hash, temporary_objects=None):
+    def get_requirements(self, plugin_name, cache_hash=None, temporary_objects=None):
         """ Get plugin requirements (a.k.a user site data) """
         if not self.requirements_exist(plugin_name, cache_hash):
             return None
@@ -62,14 +66,25 @@ class Provider(RequirementsProviderModel):
 
     def add_requirements(self, plugin_name, cache_hash, path):
         """ Add plugin requirements (a.k.a user site data) """
-        if os.path.exists(os.path.join(self.path, plugin_name)):
-            self.delete_requirements(plugin_name)
+        target_path = os.path.join(self.path, plugin_name)
         #
-        shutil.copytree(path, os.path.join(self.path, plugin_name))
+        try:
+            is_same_path = os.path.samefile(path, target_path)
+        except:  # pylint: disable=W0702
+            is_same_path = False
+        #
+        if not is_same_path:
+            if os.path.exists(target_path):
+                self.delete_requirements(plugin_name)
+            #
+            shutil.copytree(path, target_path)
+        #
         with open(os.path.join(self.path, f"{plugin_name}.json"), "wb") as file:
             file.write(json.dumps({"cache_hash": cache_hash}).encode())
 
     def delete_requirements(self, plugin_name):
         """ Delete plugin requirements (a.k.a user site data) """
-        if os.path.exists(os.path.join(self.path, plugin_name)):
-            shutil.rmtree(os.path.join(self.path, plugin_name))
+        target_path = os.path.join(self.path, plugin_name)
+        #
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
