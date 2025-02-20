@@ -42,9 +42,21 @@ if CORE_WEB_RUNTIME == "gevent":
     gevent.hub.Hub.NOT_ERROR = tuple(hub_not_errors)
 
 #
+# Disable some of the warnings early
+#
+
+import warnings
+
+warnings.filterwarnings(
+    action="ignore",
+    message="pkg_resources.*"
+)
+
+#
 # Normal imports and code below
 #
 
+import sys
 import uuid
 import socket
 import signal
@@ -109,7 +121,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Enable basic logging and say hello
     log_support.enable_basic_logging()
     log.info(
-        "Starting plugin-based Centry core (pylon: %s, arbiter: %s)",
+        "Starting plugin-based Centry core (python: %s, pylon: %s, arbiter: %s)",
+        sys.version,
         context.pylon_version,
         context.arbiter_version,
     )
