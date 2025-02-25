@@ -71,8 +71,18 @@ class ModuleManager:  # pylint: disable=R0902
 
     def init_modules(self):
         """ Load and init modules """
-        # Disable bytecode caching and register resource providers
-        sys.dont_write_bytecode = True
+        # Configure bytecode caching
+        pycache_path = self.settings.get("plugins", {}).get("pycache", None)
+        if pycache_path is not None:
+            try:
+                os.makedirs(pycache_path, exist_ok=True)
+            except:  # pylint: disable=W0702
+                pass
+            sys.pycache_prefix = pycache_path
+            sys.dont_write_bytecode = False
+        else:
+            sys.dont_write_bytecode = True
+        # Register resource providers
         pkg_resources.register_loader_type(DataModuleLoader, DataModuleProvider)
         # Make plugins holder
         if "plugins" not in sys.modules:

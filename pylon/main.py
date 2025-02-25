@@ -191,6 +191,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     if context.settings.get("system", {}).get("zombie_reaping", {}).get("enabled", False):
         context.zombie_reaper = ZombieReaper(context)
         context.zombie_reaper.start()
+    # Disable core dump file generation
+    if context.settings.get("system", {}).get("disable_core_dumps", True):
+        import resource  # pylint: disable=C0415,E0401
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     # Prepare SSL custom cert bundle
     ssl.init(context)
     # Apply patches needed for pure-python git and providers
