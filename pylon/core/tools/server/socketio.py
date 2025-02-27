@@ -123,34 +123,88 @@ def create_client_manager(context):
     return client_manager
 
 
+class SIOEventHandler:
+    """ Pylon SocketIO Event handler """
+
+    def __init__(self):
+        self.handlers = []
+
+    def __call__(self, *args, **kwargs):
+        """ Call handler """
+        for handler in self.handlers:
+            try:
+                handler(*args, **kwargs)
+            except:  # pylint: disable=W0702
+                log.exception("Failed to run SIO event handler, skipping")
+
+
 class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
     """ SockerIO Server patched for Pylon """
 
     def __init__(self, *args, **kwargs):
-        self._pylon_emit_lock = threading.Lock()
-        self._pylon_any_handlers = []
+        self.pylon_emit_lock = threading.Lock()
+        self.pylon_any_handlers = []
+        self.pylon_event_handlers = {}
         #
         super().__init__(*args, **kwargs)
 
     def emit(self, *args, **kwargs):
         """ Lock and emit() """
-        with self._pylon_emit_lock:
+        with self.pylon_emit_lock:
             return super().emit(*args, **kwargs)
 
-    def remove_handler(self, event, namespace=None):
+    def on(self, event, handler=None, namespace=None):
+        """ Register an event handler """
+        namespace = namespace or '/'
+        #
+        def _on(handler):
+            #
+            # Pylon part
+            #
+            if namespace not in self.pylon_event_handlers:
+                self.pylon_event_handlers[namespace] = {}
+            #
+            if event not in self.pylon_event_handlers[namespace]:
+                self.pylon_event_handlers[namespace][event] = SIOEventHandler()
+            #
+            if handler not in self.pylon_event_handlers[namespace][event].handlers:
+                self.pylon_event_handlers[namespace][event].handlers.append(handler)
+            #
+            # SIO part
+            #
+            if namespace not in self.handlers:
+                self.handlers[namespace] = {}
+            #
+            if event not in self.handlers[namespace]:
+                self.handlers[namespace][event] = self.pylon_event_handlers[namespace][event]
+            #
+            return handler
+        #
+        if handler is None:
+            return _on
+        #
+        _on(handler)
+
+    def remove_handler(self, event, handler, namespace=None):
         """ Remove handler """
         namespace = namespace or "/"
         #
         if namespace not in self.handlers:
             return
         #
-        self.handlers.pop(event, None)
+        if event not in self.handlers[namespace]:
+            return
+        #
+        if handler not in self.handlers[namespace][event].handlers:
+            return
+        #
+        self.handlers[namespace][event].handlers.remove(handler)
 
     def _trigger_event(self, event, namespace, *args):
         """ Call *any* handlers first """
         db_support.create_local_session()
         try:
-            for any_handler in self._pylon_any_handlers:
+            for any_handler in self.pylon_any_handlers:
                 try:
                     any_handler(event, namespace, args)
                 except:  # pylint: disable=W0702
@@ -166,17 +220,37 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
 
     def pylon_add_any_handler(self, handler):
         """ Add *any* handler """
-        if handler in self._pylon_any_handlers:
+        if handler in self.pylon_any_handlers:
             return
         #
-        self._pylon_any_handlers.append(handler)
+        self.pylon_any_handlers.append(handler)
 
     def pylon_remove_any_handler(self, handler):
         """ Remove *any* handler """
-        if handler not in self._pylon_any_handlers:
+        if handler not in self.pylon_any_handlers:
             return
         #
-        self._pylon_any_handlers.remove(handler)
+        self.pylon_any_handlers.remove(handler)
+
+
+class SIOAsyncEventHandler:
+    """ Pylon SocketIO Async Event handler """
+
+    def __init__(self):
+        self.handlers = []
+
+    async def __call__(self, *args, **kwargs):
+        """ Call handler """
+        import asyncio  # pylint: disable=E0401,C0412,C0415
+        #
+        for handler in self.handlers:
+            try:
+                if asyncio.iscoroutinefunction(handler):
+                    await handler(*args, **kwargs)
+                else:
+                    handler(*args, **kwargs)
+            except:  # pylint: disable=W0702
+                log.exception("Failed to run SIO event handler, skipping")
 
 
 class SIOPatchedAsyncServer(socketio.AsyncServer):  # pylint: disable=R0903
@@ -184,8 +258,56 @@ class SIOPatchedAsyncServer(socketio.AsyncServer):  # pylint: disable=R0903
 
     def __init__(self, *args, **kwargs):
         self.pylon_any_handlers = []  # 'public', expected to be used by proxy
+        self.pylon_event_handlers = {}
         #
         super().__init__(*args, **kwargs)
+
+    def on(self, event, handler=None, namespace=None):
+        """ Register an event handler """
+        namespace = namespace or '/'
+        #
+        def _on(handler):
+            #
+            # Pylon part
+            #
+            if namespace not in self.pylon_event_handlers:
+                self.pylon_event_handlers[namespace] = {}
+            #
+            if event not in self.pylon_event_handlers[namespace]:
+                self.pylon_event_handlers[namespace][event] = SIOAsyncEventHandler()
+            #
+            if handler not in self.pylon_event_handlers[namespace][event].handlers:
+                self.pylon_event_handlers[namespace][event].handlers.append(handler)
+            #
+            # SIO part
+            #
+            if namespace not in self.handlers:
+                self.handlers[namespace] = {}
+            #
+            if event not in self.handlers[namespace]:
+                self.handlers[namespace][event] = self.pylon_event_handlers[namespace][event]
+            #
+            return handler
+        #
+        if handler is None:
+            return _on
+        #
+        _on(handler)
+
+    def remove_handler(self, event, handler, namespace=None):
+        """ Remove handler """
+        namespace = namespace or "/"
+        #
+        if namespace not in self.handlers:
+            return
+        #
+        if event not in self.handlers[namespace]:
+            return
+        #
+        if handler not in self.handlers[namespace][event].handlers:
+            return
+        #
+        self.handlers[namespace][event].handlers.remove(handler)
 
     async def _trigger_event(self, event, namespace, *args):
         """ Call *any* handlers first """
@@ -218,7 +340,6 @@ class SIOAsyncProxy:  # pylint: disable=R0903
         self.context = context
         #
         self._emit_lock = threading.Lock()
-        self._async_handlers = {}  # handler -> async version
         self._any_async_handlers = {}  # handler -> async version
         #
         import asgiref.sync  # pylint: disable=E0401,C0412,C0415
@@ -260,23 +381,11 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def on(self, event, handler=None, namespace=None):
         """ Proxy method """
-        if handler is not None and handler not in self._async_handlers:
-            import asgiref.sync  # pylint: disable=E0401,C0412,C0415
-            self._async_handlers[handler] = asgiref.sync.SyncToAsync(handler)
-        #
-        if handler is not None:
-            handler = self._async_handlers[handler]
-        #
         return self.context.sio_async.on(event, handler, namespace)
 
-    def remove_handler(self, event, namespace=None):
-        """ Remove handler """
-        namespace = namespace or "/"
-        #
-        if namespace not in self.context.sio_async.handlers:
-            return
-        #
-        self.context.sio_async.handlers.pop(event, None)
+    def remove_handler(self, event, handler, namespace=None):
+        """ Proxy method """
+        return self.context.sio_async.remove_handler(event, handler, namespace)
 
     async def _async_emit(self, *args, **kwargs):
         """ Proxy method """

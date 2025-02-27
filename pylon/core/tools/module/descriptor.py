@@ -679,8 +679,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
 
     def deinit_sio(self):
         """ Remove event listeners """
-        for name, _ in self.registered_sios:
-            self.context.sio.remove_handler(name)
+        for name, obj in self.registered_sios:
+            self.context.sio.remove_handler(name, obj)
 
     def deinit_slots(self):
         """ Remove event listeners """
