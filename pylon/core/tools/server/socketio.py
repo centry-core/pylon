@@ -135,7 +135,7 @@ class SIOEventHandler:
             try:
                 handler(*args, **kwargs)
             except:  # pylint: disable=W0702
-                log.exception("Failed to run SIO event handler, skipping")
+                log.exception("Failed to run SIO event handler '%s', skipping", handler)
 
 
 class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
@@ -250,7 +250,7 @@ class SIOAsyncEventHandler:
                 else:
                     handler(*args, **kwargs)
             except:  # pylint: disable=W0702
-                log.exception("Failed to run SIO event handler, skipping")
+                log.exception("Failed to run SIO event handler '%s', skipping", handler)
 
 
 class SIOPatchedAsyncServer(socketio.AsyncServer):  # pylint: disable=R0903
