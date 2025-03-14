@@ -626,25 +626,57 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         # Local imports
         from tools import this  # pylint: disable=E0401,C0415
         from pylon.framework.db import db_migrations  # pylint: disable=C0415
+        from sqlalchemy.schema import CreateSchema  # pylint: disable=E0401,C0415
         #
         module_pkg = self.loader.module_name
         module_name = module_pkg.split(".")[1]
         # Step: create entities
         module_this = this.for_module(module_name)
-        module_this.db.metadata.create_all(bind=self.context.db.engine)
+        #
+        target_db_namespaces = []
+        target_db_namespaces.append(module_this.db)
         #
         db_namespace_helper = module_this.spaces.get("db_namespace_helper", None)
         if db_namespace_helper is not None:
             db_namespaces = db_namespace_helper.get_namespaces()
             #
             for db_namespace_name in module_this.db.ns_used:
-                db_namespace = db_namespaces[db_namespace_name]
-                db_namespace.metadata.create_all(bind=self.context.db.engine)
-        # Step: run migrations
+                target_db_namespaces.append(db_namespaces[db_namespace_name])
+        #
+        created_schemas = set()
+        #
+        default_schema_name = self.context.db.config.get("default_schema", None)
+        if default_schema_name is not ... and default_schema_name is not None:
+            with self.context.db.engine.connect() as db_connection:
+                db_connection.execute(CreateSchema(default_schema_name, if_not_exists=True))
+                db_connection.commit()
+                #
+                created_schemas.add(default_schema_name)
+        #
+        for db_namespace in target_db_namespaces:
+            db_namespace.metadata.create_all(bind=self.context.db.engine)
+            db_schemas = db_namespace.schema.get_schemas()
+            #
+            for db_schema_name in db_namespace.schema_used:
+                db_schema = db_schemas[db_schema_name]
+                #
+                for schema_name in self.context.db.schema_enumerator(db_schema_name):
+                    target_schema_name = self.context.db.schema_mapper(schema_name)
+                    if target_schema_name is not ... and target_schema_name is not None and target_schema_name not in created_schemas:
+                        with self.context.db.engine.connect() as db_connection:
+                            db_connection.execute(CreateSchema(target_schema_name, if_not_exists=True))
+                            db_connection.commit()
+                            #
+                            created_schemas.add(target_schema_name)
+                    #
+                    with self.context.db.make_session(schema_name) as db_session:
+                        db_schema.metadata.create_all(bind=db_session.connection())
+                        db_session.commit()
+        # Step: run alembic migrations
         if self.loader.has_directory("db/migrations"):
             db_migrations.run_db_migrations(self.module, self.context.db.url)
-        # TODO: Step: run automigrations
-        # TODO: Schema support (e.g. module.db.schema.models)
+        # TODO: Step: run manual migrations
+        # TODO: Step: run automatic migrations
 
     def install_all(  # pylint: disable=R0913
             self,

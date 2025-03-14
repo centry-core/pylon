@@ -58,6 +58,7 @@ def basic_init(context):
     context.pylon_db.engine = make_engine(context.pylon_db)
     #
     context.pylon_db.schema_mapper = lambda schema: schema
+    context.pylon_db.schema_enumerator = lambda schema: [schema]
     context.pylon_db.make_session = make_session_fn(context.pylon_db)
     #
     context.pylon_db.metadata = sqlalchemy.MetaData()
@@ -121,6 +122,7 @@ def init(context):
     context.db.engine = make_engine(context.db)
     #
     context.db.schema_mapper = lambda schema: schema
+    context.db.schema_enumerator = lambda schema: [schema]
     context.db.make_session = make_session_fn(context.db)
     #
     # Local sessions
@@ -425,7 +427,7 @@ class DbNamespaceHelper:  # pylint: disable=R0903
     def __getattr__(self, name):
         with self.__lock:
             if name not in self.__namespaces:
-                self.__namespaces[name] = make_namespace_entities(self.__context)
+                self.__namespaces[name] = make_sqlalchemy_entities(self.__context)
             #
             try:
                 from tools import this  # pylint: disable=E0401,C0411,C0415
@@ -440,6 +442,30 @@ class DbNamespaceHelper:  # pylint: disable=R0903
         """ Get present namespaces """
         with self.__lock:
             return self.__namespaces
+
+
+class DbSchemaHelper:  # pylint: disable=R0903
+    """ Schema-specific tools/helpers """
+
+    def __init__(self, context, entities):
+        self.__context = context
+        self.__entities = entities
+        self.__schemas = {}
+        self.__lock = threading.Lock()
+
+    def __getattr__(self, name):
+        with self.__lock:
+            if name not in self.__schemas:
+                self.__schemas[name] = make_sqlalchemy_entities(self.__context, schema=name, add_schema_helper=False)
+            #
+            self.__entities.schema_used.add(name)
+            #
+            return self.__schemas[name]
+
+    def get_schemas(self):
+        """ Get present schemas """
+        with self.__lock:
+            return self.__schemas
 
 
 class DbSessionHelper:  # pylint: disable=R0903
@@ -517,27 +543,48 @@ class DbSessionHelper:  # pylint: disable=R0903
         return getattr(self.__context.local.db_session, name)
 
 
-def make_namespace_entities(context):
+def make_sqlalchemy_entities(context, schema=None, add_schema_helper=True):
     """ Make namespace-specific entities """
     _ = context
     result = Context()
     #
-    result.metadata = sqlalchemy.MetaData()
+    # Base
+    #
+    result.metadata = sqlalchemy.MetaData(
+        schema=schema,
+        # naming_convention - should take from db.config
+    )
+    #
     result.Base = declarative_base(
         metadata=result.metadata,
     )
+    #
+    # Schema
+    #
+    if add_schema_helper:
+        result.schema = DbSchemaHelper(context, result)
+        result.schema_used = set()
     #
     return result
 
 
+class DbUtils:  # pylint: disable=R0903
+    """ DB utils """
+
+    def __init__(self, context, module_name, spaces, entities):
+        self.context = context
+        self.module_name = module_name
+        self.spaces = spaces
+        self.entities = entities
+
+    # def get_metadata(self, schemas=...): TODO
+
+
 def make_module_entities(context, module_name, spaces):
     """ Make module-specific entities """
-    result = Context()
+    result = make_sqlalchemy_entities(context)
     #
-    result.metadata = sqlalchemy.MetaData()
-    result.Base = declarative_base(
-        metadata=result.metadata,
-    )
+    # Namespaces
     #
     if "db_namespace_helper" not in spaces:
         spaces["db_namespace_helper"] = DbNamespaceHelper(context)
@@ -545,6 +592,12 @@ def make_module_entities(context, module_name, spaces):
     result.ns = spaces["db_namespace_helper"]
     result.ns_used = set()
     #
+    # Session
+    #
     result.session = DbSessionHelper(context, module_name)
+    #
+    # Utils
+    #
+    result.utils = DbUtils(context, module_name, spaces, result)
     #
     return result
