@@ -140,7 +140,7 @@ def patched_paramiko_client_SSHClient_auth(original_auth):  # pylint: disable=C0
 def clone(  # pylint: disable=R0913,R0912,R0914,R0915
         source, target, branch="main", depth=None, delete_git_dir=False,
         username=None, password=None, key_filename=None, key_data=None,
-        track_branch_upstream=True,
+        track_branch_upstream=True, return_head_data=False,
 ):
     """ Clone repository """
     # Prepare auth args
@@ -255,9 +255,17 @@ def clone(  # pylint: disable=R0913,R0912,R0914,R0915
             b"merge", b"refs/heads/" + branch_to_track_b,
         )
         config.write_to_path()
+    # Collect head data
+    try:
+        with porcelain.open_repo_closing(repository) as current_repository:
+            head_data = current_repository.head().decode()
+    except:  # pylint: disable=W0702
+        head_data = None
     # Delete .git if requested
     if delete_git_dir:
         log.info("Deleting .git directory")
         shutil.rmtree(os.path.join(target, ".git"))
-    # Return repo object
+    # Return repo object and head data (if requested)
+    if return_head_data:
+        return repository, head_data
     return repository

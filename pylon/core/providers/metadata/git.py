@@ -42,6 +42,7 @@ class Provider(MetadataProviderModel):  # pylint: disable=R0902
         self.password = self.settings.get("password", None)
         self.key_filename = self.settings.get("key_filename", None)
         self.key_data = self.settings.get("key_data", None)
+        self.add_head_data = self.settings.get("add_head_data", True)
 
     def init(self):
         """ Initialize provider """
@@ -54,7 +55,7 @@ class Provider(MetadataProviderModel):  # pylint: disable=R0902
         target_path = tempfile.mkdtemp()
         #
         try:
-            git.clone(
+            _, head_data = git.clone(
                 target.get("source"),
                 target_path,
                 target.get("branch", self.branch),
@@ -64,10 +65,14 @@ class Provider(MetadataProviderModel):  # pylint: disable=R0902
                 target.get("password", self.password),
                 target.get("key_filename", self.key_filename),
                 target.get("key_data", self.key_data),
+                return_head_data=True,
             )
             #
             with open(os.path.join(target_path, target.get("file", self.file)), "rb") as file:
                 result = json.load(file)
+            #
+            if target.get("add_head_data", self.add_head_data):
+                result["git_head"] = head_data
         finally:
             shutil.rmtree(target_path)
         #
