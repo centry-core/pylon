@@ -40,8 +40,8 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
         self.password = self.settings.get("password", None)
         self.key_filename = self.settings.get("key_filename", None)
         self.key_data = self.settings.get("key_data", None)
-        self.add_source_data = self.settings.get("add_source_data", True)
-        self.add_head_data = self.settings.get("add_head_data", True)
+        self.add_source_data = self.settings.get("add_source_data", False)
+        self.add_head_data = self.settings.get("add_head_data", False)
         self.metadata_file = self.settings.get("metadata_file", "metadata.json")
 
     def init(self):

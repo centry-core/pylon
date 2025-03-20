@@ -42,8 +42,8 @@ class Provider(MetadataProviderModel):  # pylint: disable=R0902
         self.password = self.settings.get("password", None)
         self.key_filename = self.settings.get("key_filename", None)
         self.key_data = self.settings.get("key_data", None)
-        self.add_source_data = self.settings.get("add_source_data", True)
-        self.add_head_data = self.settings.get("add_head_data", True)
+        self.add_source_data = self.settings.get("add_source_data", False)
+        self.add_head_data = self.settings.get("add_head_data", False)
 
     def init(self):
         """ Initialize provider """
