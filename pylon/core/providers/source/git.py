@@ -40,6 +40,7 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
         self.password = self.settings.get("password", None)
         self.key_filename = self.settings.get("key_filename", None)
         self.key_data = self.settings.get("key_data", None)
+        self.add_source_data = self.settings.get("add_source_data", True)
         self.add_head_data = self.settings.get("add_head_data", True)
         self.metadata_file = self.settings.get("metadata_file", "metadata.json")
 
@@ -67,13 +68,20 @@ class Provider(SourceProviderModel):  # pylint: disable=R0902
             return_head_data=True,
         )
         #
-        if target.get("add_head_data", self.add_head_data):
+        add_source_data = target.get("add_source_data", self.add_source_data)
+        add_head_data = target.get("add_head_data", self.add_head_data)
+        #
+        if add_source_data or add_head_data:
             metadata_path = os.path.join(target_path, target.get("metadata_file", self.metadata_file))
             #
             with open(metadata_path, "rb") as file:
                 metadata = json.load(file)
             #
-            metadata["git_head"] = head_data
+            if add_source_data:
+                metadata["git_source"] = target.get("source")
+            #
+            if add_head_data:
+                metadata["git_head"] = head_data
             #
             with open(metadata_path, "w") as file:
                 json.dump(metadata, file, indent=2)
