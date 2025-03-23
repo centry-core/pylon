@@ -9,6 +9,7 @@ RUN set -x \
   && apt-get update \
   && apt-get install --no-install-recommends -y \
       dumb-init \
+      supervisor \
       geoip-database \
       libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 \
       libcairo2 libcups2 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 \
@@ -38,6 +39,11 @@ COPY ./ ./.git ./pylon/
 RUN set -x \
   && pip install $PIP_ARGS ./pylon \
   && rm -r ./pylon
+
+COPY ./supervisord.conf /usr/local/etc/supervisord.conf
+RUN set -x \
+  && dos2unix /usr/local/etc/supervisord.conf \
+  && chmod 644 /usr/local/etc/supervisord.conf
 
 COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
 RUN set -x \

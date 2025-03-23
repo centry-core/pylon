@@ -2,7 +2,7 @@ FROM --platform=$TARGETPLATFORM python:3.12-alpine
 WORKDIR /usr/src/app
 
 RUN set -x \
-  && apk add bash dumb-init vim alpine-sdk git libpq-dev libffi-dev curl dos2unix
+  && apk add bash dumb-init supervisor vim alpine-sdk git libpq-dev libffi-dev curl dos2unix
 
 RUN set -x \
   && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
@@ -21,6 +21,11 @@ COPY ./ ./.git ./pylon/
 RUN set -x \
   && pip install $PIP_ARGS ./pylon \
   && rm -r ./pylon
+
+COPY ./supervisord.conf /usr/local/etc/supervisord.conf
+RUN set -x \
+  && dos2unix /usr/local/etc/supervisord.conf \
+  && chmod 644 /usr/local/etc/supervisord.conf
 
 COPY ./entrypoint.sh /usr/local/sbin/entrypoint.sh
 RUN set -x \
