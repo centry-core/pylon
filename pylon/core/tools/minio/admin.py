@@ -17,13 +17,20 @@
 
 """ MinIO admin API """
 
-import os
-import ctypes
+import io
 import base64
 import json
-import binascii
 import requests  # pylint: disable=E0401
 import minio  # pylint: disable=E0401
+import minio.crypto  # pylint: disable=E0401
+
+
+class DataWrapper(io.BytesIO):
+    """ BaseHTTPResponse-like wrapper """
+
+    def release_conn(self):
+        """ No-op """
+        pass
 
 
 class MinIOAdminCrypt:
@@ -31,21 +38,14 @@ class MinIOAdminCrypt:
 
     def __init__(self, secret_key):
         self.key = secret_key
-        self.lib = ctypes.cdll.LoadLibrary(
-            os.path.join(os.path.dirname(__file__), "minio_madmin.so")
-        )
-        self.lib.decrypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-        self.lib.decrypt.restype = ctypes.c_char_p
-        self.lib.encrypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-        self.lib.encrypt.restype = ctypes.c_char_p
 
     def encrypt(self, data):
         """ Encrypt data  """
-        return binascii.unhexlify(self.lib.encrypt(self.key.encode(), binascii.hexlify(data)))
+        return minio.crypto.encrypt(data, self.key)
 
     def decrypt(self, data):
         """ Decrypt data """
-        return binascii.unhexlify(self.lib.decrypt(self.key.encode(), binascii.hexlify(data)))
+        return minio.crypto.decrypt(DataWrapper(data), self.key)
 
 
 class MinIOAdminAuth(requests.auth.AuthBase):  # pylint: disable=R0903
