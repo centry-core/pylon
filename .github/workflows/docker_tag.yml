@@ -1,18 +1,14 @@
-name: Build and push Docker multiarch image
+name: Build and push Docker multiarch image from tag
 
 on:
-  workflow_dispatch:
-    inputs:
-        docker_tag:
-          default: "getcarrier/pylon:latest"
-          description: "Docker image name and tag"
-          required: true
+  push:
+    tags: [ '*' ]
 
 permissions:
   contents: read
 
 jobs:
-  docker:
+  docker-tag:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -38,7 +34,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v4
         with:
-          tags: ${{ inputs.docker_tag }}
+          tags: getcarrier/pylon:${{ github.ref_name }}
           builder: ${{ steps.buildx.outputs.name }}
           platforms: linux/amd64,linux/arm64
           push: true
