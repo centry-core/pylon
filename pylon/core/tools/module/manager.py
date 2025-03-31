@@ -537,6 +537,7 @@ class ModuleManager:  # pylint: disable=R0902
     def install_requirements(
             self, requirements_path, target_site_base,
             additional_site_paths=None, constraint_paths=None,
+            retries=2, retry_delay=5,
         ):
         """ Install requirements into target site """
         cache_dir = self.settings["requirements"].get("cache", "/tmp/pylon_pip_cache")
@@ -568,19 +569,28 @@ class ModuleManager:  # pylint: disable=R0902
             c_args.append("--trusted-host")
             c_args.append(trusted_host)
         #
-        return process.run_command(
-            [
-                sys.executable,
-                "-m", "pip", "install",
-                "--user", "--no-warn-script-location",
-                "--disable-pip-version-check",
-                "--root-user-action=ignore",
-                "--cache-dir", cache_dir,
-            ] + c_args + [
-                "-r", requirements_path,
-            ],
-            env=environ,
-        )
+        for retry in range(retries):
+            try:
+                return process.run_command(
+                    [
+                        sys.executable,
+                        "-m", "pip", "install",
+                        "--user", "--no-warn-script-location",
+                        "--disable-pip-version-check",
+                        "--root-user-action=ignore",
+                        "--cache-dir", cache_dir,
+                    ] + c_args + [
+                        "-r", requirements_path,
+                    ],
+                    env=environ,
+                )
+            except: # pylint: disable=W0702
+                no_more_retries = retry == retries - 1
+                if no_more_retries:
+                    raise
+                #
+                log.exception("Failed to install requirements, waiting for retry")
+                time.sleep(retry_delay)
 
     def freeze_site_requirements(
             self, target_site_base, requirements_path=None, additional_site_paths=None
