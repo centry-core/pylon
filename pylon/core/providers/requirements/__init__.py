@@ -43,6 +43,6 @@ class RequirementsProviderModel:
         """ Add plugin requirements (a.k.a user site data) """
         raise NotImplementedError()
 
-    def delete_requirements(self, plugin_name):
+    def delete_requirements(self, plugin_name, recreate=False):
         """ Delete plugin requirements (a.k.a user site data) """
         raise NotImplementedError()

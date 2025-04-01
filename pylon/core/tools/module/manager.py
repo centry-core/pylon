@@ -37,6 +37,7 @@ from pylon.core.tools import (
     dependency,
     db_support,
     ssl,
+    config,
 )
 
 from .proxy import (
@@ -68,6 +69,14 @@ class ModuleManager:  # pylint: disable=R0902
         self.module = ModuleProxy(self)
         #
         self.load_order = []
+        #
+        self.pylon_requirements_hash = hashlib.sha256(self.context.pylon_requirements.encode()).hexdigest()
+        self.previous_requirements_hash = config.tunable_get("pylon_requirements_hash", b"").decode()
+        #
+        self.pylon_requirements_changed = self.pylon_requirements_hash != self.previous_requirements_hash
+        if self.pylon_requirements_changed:
+            log.info("Pylon requirements changed: %s -> %s", self.previous_requirements_hash, self.pylon_requirements_hash)
+            config.tunable_set("pylon_requirements_hash", self.pylon_requirements_hash.encode())
 
     def init_modules(self):
         """ Load and init modules """
@@ -289,8 +298,7 @@ class ModuleManager:  # pylint: disable=R0902
             module_site_paths = []
             module_constraint_paths = []
             #
-            pylon_requirements_hash = hashlib.sha256(self.context.pylon_requirements.encode()).hexdigest()
-            cache_hash_chunks.append(pylon_requirements_hash)
+            cache_hash_chunks.append(self.pylon_requirements_hash)
         else:
             cache_hash_chunks, module_site_paths, module_constraint_paths = prepared_items
         #
@@ -317,9 +325,15 @@ class ModuleManager:  # pylint: disable=R0902
                     module_name, None, self.temporary_objects,
                 )
                 #
+                install_kwargs = {}
+                #
                 if requirements_install_base is None:
                     requirements_install_base = tempfile.mkdtemp()
                     self.temporary_objects.append(requirements_install_base)
+                elif self.pylon_requirements_changed:
+                    install_kwargs["delete_on_failure"] = True
+                    install_kwargs["module_name"] = module_name
+                    install_kwargs["provider"] = self.providers["requirements"]
                 #
                 log.info("Installing requirements for: %s", module_descriptor.name)
                 #
@@ -329,6 +343,8 @@ class ModuleManager:  # pylint: disable=R0902
                         target_site_base=requirements_install_base,
                         additional_site_paths=module_site_paths,
                         constraint_paths=module_constraint_paths,
+                        #
+                        **install_kwargs,
                     )
                 except:  # pylint: disable=W0702
                     log.exception("Failed to install requirements for: %s", module_descriptor.name)
@@ -537,7 +553,9 @@ class ModuleManager:  # pylint: disable=R0902
     def install_requirements(
             self, requirements_path, target_site_base,
             additional_site_paths=None, constraint_paths=None,
+            *,
             retries=2, retry_delay=5,
+            delete_on_failure=False, module_name=None, provider=None,
         ):
         """ Install requirements into target site """
         cache_dir = self.settings["requirements"].get("cache", "/tmp/pylon_pip_cache")
@@ -589,7 +607,13 @@ class ModuleManager:  # pylint: disable=R0902
                 if no_more_retries:
                     raise
                 #
-                log.exception("Failed to install requirements, waiting for retry")
+                log.exception("Failed to install requirements")
+                #
+                if delete_on_failure and module_name is not None and provider is not None:
+                    log.info("Deleting requirements for module: %s", module_name)
+                    provider.delete_requirements(module_name, recreate=True)
+                #
+                log.info("Waiting for retry")
                 time.sleep(retry_delay)
 
     def freeze_site_requirements(

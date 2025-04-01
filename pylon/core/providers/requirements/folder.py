@@ -82,9 +82,12 @@ class Provider(RequirementsProviderModel):
         with open(os.path.join(self.path, f"{plugin_name}.json"), "wb") as file:
             file.write(json.dumps({"cache_hash": cache_hash}).encode())
 
-    def delete_requirements(self, plugin_name):
+    def delete_requirements(self, plugin_name, recreate=False):
         """ Delete plugin requirements (a.k.a user site data) """
         target_path = os.path.join(self.path, plugin_name)
         #
         if os.path.exists(target_path):
             shutil.rmtree(target_path)
+        #
+        if recreate:
+            os.makedirs(target_path, exist_ok=True)
