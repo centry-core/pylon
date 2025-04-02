@@ -115,9 +115,11 @@ def _regenerate(self):
 
 
 def _destroy(self):
-    from flask import current_app  # pylint: disable=E0401,C0415
-    session_interface = current_app.session_interface
-    session_interface._delete_session(session_interface._get_store_id(self.sid))  # pylint: disable=W0212
+    self["dummy"] = True  # dummy value to trigger the session to be regenerated
+    self.regenerate()
+    #
+    self.clear()
+    self.modified = True
 
 
 def _patched_open_session(original_open_session):
