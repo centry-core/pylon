@@ -22,7 +22,7 @@
 
 import pickle
 
-from flask_session.base import ServerSideSession, ServerSideSessionInterface  # pylint: disable=E0401
+from flask_session.base import ServerSideSession, ServerSideSessionInterface, Serializer  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools.context import Context
@@ -103,7 +103,7 @@ def make_session_interface(context):
     # Result
     def _result(app):
         result = target.cls(app, **target.kwargs)
-        result.serializer = pickle
+        result.serializer = PickleSerializer(app)
         return result
     #
     return _result
@@ -149,3 +149,26 @@ def _patched_save_session(original_save_session):
         return original_save_session(self, app, session, response)
     #
     return _save_session
+
+
+class PickleSerializer(Serializer):
+    """ Pickle serializer """
+
+    def __init__(self, app):
+        self.app = app
+
+    def encode(self, session):
+        """ Serialize """
+        try:
+            return pickle.dumps(dict(session), protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception as e:
+            self.app.logger.error(f"Failed to serialize session data: {e}")
+            raise
+
+    def decode(self, serialized_data):
+        """ Deserialize """
+        try:
+            return pickle.loads(serialized_data)
+        except Exception as e:
+            self.app.logger.error(f"Failed to deserialize session data: {e}")
+            raise
