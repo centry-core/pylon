@@ -19,7 +19,8 @@
 """
     Session tools
 """
-from flask_session.base import ServerSideSession  # pylint: disable=E0401
+
+from flask_session.base import ServerSideSession, ServerSideSessionInterface  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools.context import Context
@@ -27,9 +28,16 @@ from pylon.core.tools.context import Context
 
 def make_session_interface(context):
     """ Make session interface for server-side session storage """
-    # Patch ServerSideSession
+    # Patch
     ServerSideSession.regenerate = _regenerate
     ServerSideSession.destroy = _destroy
+    #
+    ServerSideSessionInterface.open_session = _patched_open_session(
+        ServerSideSessionInterface.open_session
+    )
+    ServerSideSessionInterface.save_session = _patched_save_session(
+        ServerSideSessionInterface.save_session
+    )
     # Get configs
     application_config = context.settings.get("application", {})
     sessions_config = context.settings.get("sessions", {})
@@ -103,3 +111,31 @@ def _destroy(self):
     self.clear()
     self.modified = True
     self.accessed = True
+
+
+def _patched_open_session(original_open_session):
+    def _open_session(self, app, request):
+        if isinstance(request, Context):
+            if not hasattr(request, "cookies"):
+                request.cookies = {}
+        #
+        return original_open_session(self, app, request)
+    #
+    return _open_session
+
+
+def _patched_save_session(original_save_session):
+    def _save_session(self, app, session, response):
+        if isinstance(response, Context):
+            if not hasattr(response, "set_cookie"):
+                response.set_cookie = lambda *args, **kwargs: None
+            #
+            if not hasattr(response, "delete_cookie"):
+                response.delete_cookie = lambda *args, **kwargs: None
+            #
+            if not hasattr(response, "vary"):
+                response.vary = set()
+        #
+        return original_save_session(self, app, session, response)
+    #
+    return _save_session
