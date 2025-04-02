@@ -24,7 +24,6 @@ import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
 import socketio  # pylint: disable=E0401
 
-from flask_kvsession import KVSessionExtension  # pylint: disable=E0401
 from werkzeug.middleware.proxy_fix import ProxyFix  # pylint: disable=E0401
 
 from pylon.core.tools import log
@@ -46,7 +45,7 @@ class AppManager:  # pylint: disable=R0903,R0902
         self.managed_apps = []
         self.managed_api = None
         #
-        self.session_store = None
+        self.session_interface = None
         #
         self.app_hooks = {}
         self.api_hooks = {}
@@ -74,8 +73,8 @@ class AppManager:  # pylint: disable=R0903,R0902
         self.add_socketio_app()
         # App router
         self.add_app_router()
-        # Session store
-        self.session_store = session.make_session_store(self.context)
+        # Session interface
+        self.session_interface = session.make_session_interface(self.context)
         # API
         self.add_api_instance()
         # AppShim
@@ -88,7 +87,7 @@ class AppManager:  # pylint: disable=R0903,R0902
         app.config["CONTEXT"] = self.context
         app.config.from_mapping(self.context.settings.get("application", {}))
         #
-        KVSessionExtension(self.session_store, app)
+        app.session_interface = self.session_interface.cls(app, **self.session_interface.kwargs)
         #
         app.url_build_error_handlers.append(self.url_build_error_handler(app))
         app.jinja_loader = ShimLoader(self.context, app)
