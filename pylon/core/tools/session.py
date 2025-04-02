@@ -108,8 +108,8 @@ def _regenerate(self):
 
 
 def _destroy(self):
-    from tools import context  # pylint: disable=E0401,C0415
-    session_interface = context.app_manager.session_interface
+    from flask import current_app  # pylint: disable=E0401,C0415
+    session_interface = current_app.session_interface
     session_interface._delete_session(session_interface._get_store_id(self.sid))  # pylint: disable=W0212
     #
     self.clear()
