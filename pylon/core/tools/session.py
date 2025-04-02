@@ -20,6 +20,8 @@
     Session tools
 """
 
+import pickle
+
 from flask_session.base import ServerSideSession, ServerSideSessionInterface  # pylint: disable=E0401
 
 from pylon.core.tools import log
@@ -47,8 +49,8 @@ def make_session_interface(context):
     #
     redis_config = sessions_config.get("redis", {})
     memory_config = sessions_config.get("memory", {})
-    # Result
-    result = Context()
+    # Target
+    target = Context()
     # Redis
     if redis_config:
         from redis import StrictRedis  # pylint: disable=E0401,C0415
@@ -61,8 +63,8 @@ def make_session_interface(context):
             ssl=redis_config.get("use_ssl", False),
         )
         #
-        result.cls = RedisSessionInterface
-        result.kwargs = {
+        target.cls = RedisSessionInterface
+        target.kwargs = {
             "client": client,
             #
             "use_signer": "SECRET_KEY" in application_config,
@@ -72,7 +74,7 @@ def make_session_interface(context):
         }
         #
         if session_prefix:
-            result.kwargs["key_prefix"] = session_prefix
+            target.kwargs["key_prefix"] = session_prefix
         #
         log.info("Using redis for session storage")
     else:  # Memory
@@ -84,8 +86,8 @@ def make_session_interface(context):
             default_timeout=memory_config.get("default_timeout", 0),
         )
         #
-        result.cls = CacheLibSessionInterface
-        result.kwargs = {
+        target.cls = CacheLibSessionInterface
+        target.kwargs = {
             "client": client,
             #
             "use_signer": "SECRET_KEY" in application_config,
@@ -95,11 +97,16 @@ def make_session_interface(context):
         }
         #
         if session_prefix:
-            result.kwargs["key_prefix"] = session_prefix
+            target.kwargs["key_prefix"] = session_prefix
         #
         log.info("Using memory for session storage")
-    # Done
-    return result
+    # Result
+    def _result(app):
+        result = target.cls(app, **target.kwargs)
+        result.serializer = pickle
+        return result
+    #
+    return _result
 
 
 def _regenerate(self):

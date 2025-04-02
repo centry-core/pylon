@@ -87,7 +87,7 @@ class AppManager:  # pylint: disable=R0903,R0902
         app.config["CONTEXT"] = self.context
         app.config.from_mapping(self.context.settings.get("application", {}))
         #
-        app.session_interface = self.session_interface.cls(app, **self.session_interface.kwargs)
+        app.session_interface = self.session_interface(app)
         #
         app.url_build_error_handlers.append(self.url_build_error_handler(app))
         app.jinja_loader = ShimLoader(self.context, app)
