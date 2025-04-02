@@ -108,9 +108,12 @@ def _regenerate(self):
 
 
 def _destroy(self):
+    from tools import context  # pylint: disable=E0401,C0415
+    session_interface = context.app_manager.session_interface
+    session_interface._delete_session(session_interface._get_store_id(self.sid))  # pylint: disable=W0212
+    #
     self.clear()
     self.modified = True
-    self.accessed = True
 
 
 def _patched_open_session(original_open_session):
