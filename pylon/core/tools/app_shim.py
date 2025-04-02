@@ -37,6 +37,12 @@ class AppShim(metaclass=AppShimMeta):  # pylint: disable=R0903
     def __init__(self, context):
         self.context = context
 
+    @property
+    def session_cookie_name(self):
+        """ Shim """
+        from tools import this  # pylint: disable=E0401,C0415
+        return this.descriptor.app.config["SESSION_COOKIE_NAME"]
+
     def __getattr__(self, name):
         hook_decorators = [
             "errorhandler",
@@ -58,7 +64,6 @@ class AppShim(metaclass=AppShimMeta):  # pylint: disable=R0903
         this_proxies = [
             "app_context",
             "secret_key",
-            "session_cookie_name",
             "session_interface",
             "config",
         ]
