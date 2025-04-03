@@ -110,15 +110,23 @@ def make_session_interface(context):
 
 
 def _regenerate(self):
+    added_dummy = False
+    #
+    if not self:
+        self["_dummy"] = True  # dummy value to trigger the session to be regenerated
+        added_dummy = True
+    #
     from flask import current_app  # pylint: disable=E0401,C0415
     current_app.session_interface.regenerate(self)
+    #
+    if added_dummy:
+        self.pop("_dummy", None)
 
 
 def _destroy(self):
-    self["dummy"] = True  # dummy value to trigger the session to be regenerated
-    self.regenerate()
-    #
+    self.regenerate()  # regenerate will delete data from storage
     self.clear()
+    #
     self.modified = True
 
 

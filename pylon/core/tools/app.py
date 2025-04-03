@@ -42,6 +42,11 @@ class AppManager:  # pylint: disable=R0903,R0902
     def __init__(self, context):
         self.context = context
         #
+        self.app_config_defaults = {  # just to be specific here
+            "PERMANENT_SESSION_LIFETIME": 2678400,
+            "SESSION_REFRESH_EACH_REQUEST": True,
+        }
+        #
         self.managed_apps = []
         self.managed_api = None
         #
@@ -85,6 +90,7 @@ class AppManager:  # pylint: disable=R0903,R0902
         app = flask.Flask(*args, **kwargs)
         #
         app.config["CONTEXT"] = self.context
+        app.config.from_mapping(self.app_config_defaults)
         app.config.from_mapping(self.context.settings.get("application", {}))
         #
         app.session_interface = self.session_interface(app)
