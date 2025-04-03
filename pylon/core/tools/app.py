@@ -42,9 +42,9 @@ class AppManager:  # pylint: disable=R0903,R0902
     def __init__(self, context):
         self.context = context
         #
-        self.app_config_defaults = {  # just to be specific here
-            "PERMANENT_SESSION_LIFETIME": 2678400,
-            "SESSION_REFRESH_EACH_REQUEST": True,
+        self.app_config_defaults = {
+            "PERMANENT_SESSION_LIFETIME": 2678400,  # 31 days, actual session lifetime will be less
+            "SESSION_REFRESH_EACH_REQUEST": False,  # auth is already set only during login/logout
         }
         #
         self.managed_apps = []
