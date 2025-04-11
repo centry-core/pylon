@@ -557,16 +557,39 @@ class ModuleManager:  # pylint: disable=R0902
 
     def _apply_requirements_overrides(self, module_name, requirements):
         """ Apply requirements overrides for backward compatibility """
-        if module_name in PYLON_MODULE_REQUIREMENTS_OVERRIDES:
-            log.info("Applying requirements overrides for module: %s", module_name)
-            #
-            module_overrides = PYLON_MODULE_REQUIREMENTS_OVERRIDES[module_name]
-            stripped_requirements = requirements.strip()
-            #
-            if module_overrides["value_from_stripped"] == stripped_requirements:
-                requirements = module_overrides["value_to"]
+        result = requirements.encode()
         #
-        return requirements.encode()
+        if module_name not in PYLON_MODULE_REQUIREMENTS_OVERRIDES:
+            return result
+        #
+        module_overrides = PYLON_MODULE_REQUIREMENTS_OVERRIDES[module_name]
+        #
+        stripped_requirements = requirements.strip()
+        if module_overrides["value_from_stripped"] != stripped_requirements:
+            return result
+        #
+        for mod_name, mod_checks in module_overrides["if_module_requires"].items():
+            if mod_name not in self.descriptors:
+                return result
+            #
+            mod_reqs = {}
+            #
+            for req_obj in pkg_resources.parse_requirements(
+                    self.descriptors[mod_name].requirements
+            ):
+                mod_reqs[req_obj.key] = req_obj
+            #
+            for check_key, check_value in mod_checks.items():
+                if check_key not in mod_reqs:
+                    return result
+                #
+                if check_value not in mod_reqs[check_key]:
+                    return result
+        #
+        log.info("Applying requirements overrides for module: %s", module_name)
+        #
+        result = module_overrides["value_to"].encode()
+        return result
 
     def install_requirements(
             self, requirements_path, target_site_base,
