@@ -61,6 +61,8 @@ def make_session_interface(context):
             port=redis_config.get("port", 6379),
             password=redis_config.get("password", None),
             ssl=redis_config.get("use_ssl", False),
+            socket_timeout=redis_config.get("socket_timeout", 60),
+            socket_connect_timeout=redis_config.get("socket_connect_timeout", 30),
         )
         #
         target.cls = RedisSessionInterface
