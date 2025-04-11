@@ -22,7 +22,7 @@
 PYLON_MODULE_REQUIREMENTS_OVERRIDES = {
     "prompt_lib": {
         "value_from_stripped": "langchain-openai==0.0.8",
-        "value_to": "langchain-openai==0.0.8\npydantic==1.10.21\n",
+        "value_to": "langchain-openai==0.0.8\npydantic==1.10.11\n",
         "if_module_requires": {
             "shared": {
                 "pydantic": "1.10.11",
