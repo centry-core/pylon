@@ -42,7 +42,7 @@ def run_db_migrations(  # pylint: disable=R0913
     )
     #
     if migrations_path is None:
-        migrations_path = f"plugins.{module.descriptor.name}:db/migrations"
+        migrations_path = f"plugins.{module.descriptor.name}:db/alembic_migrations"
     #
     if version_table is None:
         version_table = f"db_version__{module.descriptor.name}"
@@ -94,7 +94,7 @@ def get_db_head(module, migrations_path=None):
     """ Get migrations head revision """
     #
     if migrations_path is None:
-        migrations_path = f"plugins.{module.descriptor.name}:db/migrations"
+        migrations_path = f"plugins.{module.descriptor.name}:db/alembic_migrations"
     #
     script = alembic.script.ScriptDirectory(
         alembic.util.coerce_resource_to_filename(migrations_path),

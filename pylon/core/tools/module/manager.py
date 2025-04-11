@@ -49,6 +49,7 @@ from .loader import (
     DataModuleProvider,
 )
 from .descriptor import ModuleDescriptor
+from .overrides import PYLON_MODULE_REQUIREMENTS_OVERRIDES
 
 
 class ModuleManager:  # pylint: disable=R0902
@@ -318,7 +319,11 @@ class ModuleManager:  # pylint: disable=R0902
             os.close(requirements_txt_fd)
             #
             with open(requirements_txt, "wb") as file:
-                file.write(module_descriptor.requirements.encode())
+                file.write(
+                    self._apply_requirements_overrides(
+                        module_name, module_descriptor.requirements
+                    )
+                )
             #
             if not self.providers["requirements"].requirements_exist(module_name, cache_hash):
                 requirements_install_base = self.providers["requirements"].get_requirements(
@@ -335,7 +340,7 @@ class ModuleManager:  # pylint: disable=R0902
                     install_kwargs["module_name"] = module_name
                     install_kwargs["provider"] = self.providers["requirements"]
                 #
-                log.info("Installing requirements for: %s", module_descriptor.name)
+                log.info("Installing requirements for: %s", module_name)
                 #
                 try:
                     self.install_requirements(
@@ -549,6 +554,19 @@ class ModuleManager:  # pylint: disable=R0902
             [sys.executable, "-m", "site", "--user-site"],
             env=new_env,
         ).decode().strip()
+
+    def _apply_requirements_overrides(self, module_name, requirements):
+        """ Apply requirements overrides for backward compatibility """
+        if module_name in PYLON_MODULE_REQUIREMENTS_OVERRIDES:
+            log.info("Applying requirements overrides for module: %s", module_name)
+            #
+            module_overrides = PYLON_MODULE_REQUIREMENTS_OVERRIDES[module_name]
+            stripped_requirements = requirements.strip()
+            #
+            if module_overrides["value_from_stripped"] == stripped_requirements:
+                requirements = module_overrides["value_to"]
+        #
+        return requirements.encode()
 
     def install_requirements(
             self, requirements_path, target_site_base,

@@ -673,7 +673,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                         db_schema.metadata.create_all(bind=db_session.connection())
                         db_session.commit()
         # Step: run alembic migrations
-        if self.loader.has_directory("db/migrations"):
+        if self.loader.has_directory("db/alembic_migrations"):
             db_migrations.run_db_migrations(self.module, self.context.db.url)
         # TODO: Step: run manual migrations
         # TODO: Step: run automatic migrations
