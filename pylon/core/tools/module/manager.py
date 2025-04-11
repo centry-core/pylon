@@ -308,22 +308,22 @@ class ModuleManager:  # pylint: disable=R0902
                 log.warning("Skipping module prepare: %s", module_descriptor.name)
                 continue
             #
-            requirements_hash = hashlib.sha256(module_descriptor.requirements.encode()).hexdigest()
+            module_name = module_descriptor.name
+            #
+            module_requirements = self._apply_requirements_overrides(
+                module_name, module_descriptor.requirements
+            )
+            #
+            requirements_hash = hashlib.sha256(module_requirements).hexdigest()
             cache_hash_chunks.append(requirements_hash)
             cache_hash = hashlib.sha256("_".join(cache_hash_chunks).encode()).hexdigest()
-            #
-            module_name = module_descriptor.name
             #
             requirements_txt_fd, requirements_txt = tempfile.mkstemp(".txt")
             self.temporary_objects.append(requirements_txt)
             os.close(requirements_txt_fd)
             #
             with open(requirements_txt, "wb") as file:
-                file.write(
-                    self._apply_requirements_overrides(
-                        module_name, module_descriptor.requirements
-                    )
-                )
+                file.write(module_requirements)
             #
             if not self.providers["requirements"].requirements_exist(module_name, cache_hash):
                 requirements_install_base = self.providers["requirements"].get_requirements(
