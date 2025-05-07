@@ -128,7 +128,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     )
     # Load settings from seed
     log.info("Loading and parsing settings")
-    context.settings = seed.load_settings()
+    context.settings_data, context.settings = seed.load_settings(return_data_first=True)
     if not context.settings:
         log.error("Settings are empty or invalid. Exiting")
         os._exit(1)  # pylint: disable=W0212
@@ -141,9 +141,11 @@ def main():  # pylint: disable=R0912,R0914,R0915
         log.info("Loading and parsing tunable settings")
         tunable_settings = seed.parse_settings(tunable_settings_data)
         if tunable_settings:
+            context.settings_data = tunable_settings_data
             tunable_settings_mode = tunable_settings.get("pylon", {}).get(
                 "tunable_settings_mode", "override"
             )
+            #
             if tunable_settings_mode == "merge":
                 context.settings = recursive_merge(context.settings, tunable_settings)
             elif tunable_settings_mode == "update":

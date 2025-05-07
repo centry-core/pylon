@@ -30,12 +30,15 @@ from pylon.core.tools import env
 from pylon.core.tools import config
 
 
-def load_settings():
+def load_settings(return_data_first=False):
     """ Load settings from seed from env """
     settings_data = None
     settings_seed = env.get_var("CONFIG_SEED", None)
     #
     if not settings_seed or ":" not in settings_seed:
+        if return_data_first:
+            return None, None
+        #
         return None
     #
     settings_seed_tag = settings_seed[:settings_seed.find(":")]
@@ -47,7 +50,13 @@ def load_settings():
         log.exception("Failed to unseed settings")
     #
     if not settings_data:
+        if return_data_first:
+            return None, None
+        #
         return None
+    #
+    if return_data_first:
+        return settings_data, parse_settings(settings_data)
     #
     return parse_settings(settings_data)
 
