@@ -118,7 +118,7 @@ Hypercorn==0.17.3
 exceptiongroup==1.2.2
 tomli==2.2.1
 priority==2.0.0
-h11==0.14.0
+h11==0.16.0
 taskgroup==0.2.2
 h2==4.2.0
 hpack==4.1.0
