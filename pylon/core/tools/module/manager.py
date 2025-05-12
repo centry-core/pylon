@@ -193,10 +193,10 @@ class ModuleManager:  # pylint: disable=R0902
                 local_module_map.pop(e.dependency_b, None)
 
     def _make_preload_module_meta_map(self):
-        module_meta_map = {}  # module_name -> (metadata, loader)
-        #
         if "preload" not in self.settings:
-            return module_meta_map
+            return {}
+        #
+        meta_items = []
         #
         for module_name in self.settings["preload"]:
             if not self.providers["plugins"].plugin_exists(module_name):
@@ -238,12 +238,18 @@ class ModuleManager:  # pylint: disable=R0902
                 log.exception("Could not make module loader: %s", module_name)
                 continue
             #
-            module_meta_map[module_name] = (module_metadata, module_loader)
+            meta_items.append((module_name, module_metadata, module_loader))
+        #
+        meta_items.sort(key=lambda item: item[1].get("order_weight", 0))
+        module_meta_map = {}  # module_name -> (metadata, loader)
+        #
+        for module_name, module_metadata, module_loader in meta_items:
+            module_meta_map[module_name] = (module_metadata, module_loader)        
         #
         return module_meta_map
 
     def _make_target_module_meta_map(self):
-        module_meta_map = {}  # module_name -> (metadata, loader)
+        meta_items = []
         #
         for module_name in self.providers["plugins"].list_plugins(exclude=list(self.modules)):
             try:
@@ -252,6 +258,12 @@ class ModuleManager:  # pylint: disable=R0902
                 log.exception("Could not make module loader: %s", module_name)
                 continue
             #
+            meta_items.append((module_name, module_metadata, module_loader))
+        #
+        meta_items.sort(key=lambda item: item[1].get("order_weight", 0))
+        module_meta_map = {}  # module_name -> (metadata, loader)
+        #
+        for module_name, module_metadata, module_loader in meta_items:
             module_meta_map[module_name] = (module_metadata, module_loader)
         #
         return module_meta_map
