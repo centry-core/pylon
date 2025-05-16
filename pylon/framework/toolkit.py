@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 # coding=utf-8
+# pylint: disable=C0415
 
 #   Copyright 2024 getcarrier.io
 #
@@ -20,8 +21,6 @@
 import sys
 import types
 
-from pylon.core.tools.module.this import This
-
 
 def basic_init(context):
     """ Make tools holder """
@@ -35,5 +34,17 @@ def basic_init(context):
 
 def init(context):
     """ Pre-populate toolkit """
-    # Register module helpers as a tool
+    # Config
+    framework_config = context.settings.get("framework", {})
+    tools_config = framework_config.get("tools", {})
+    # Register tools
+    from pylon.core.tools.module.this import This
     setattr(sys.modules["tools"], "this", This(context))
+    #
+    if tools_config.get("enable_log", True):
+        from pylon.core.tools import log
+        setattr(sys.modules["tools"], "log", log)
+    #
+    if tools_config.get("enable_web", True):
+        from pylon.core.tools import web
+        setattr(sys.modules["tools"], "web", web)
