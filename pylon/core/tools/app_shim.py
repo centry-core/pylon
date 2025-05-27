@@ -28,7 +28,7 @@ class AppShimMeta(type):
 
     def __getattr__(cls, name):
         log.debug("AppShim.cls.__getattr__(%s)", name)
-        raise RuntimeError("Not supported")
+        raise AttributeError("Not supported")
 
 
 class AppShim(metaclass=AppShimMeta):  # pylint: disable=R0903

@@ -395,7 +395,8 @@ class LazyLocalSessionMeta(type):
     """ Local session lazy meta class """
 
     def __getattr__(cls, name):
-        log.info("LazyLocalSession.cls.__getattr__(%s)", name)
+        log.debug("LazyLocalSession.cls.__getattr__(%s)", name)
+        raise AttributeError("Not supported")
 
 
 class LazyLocalSession(metaclass=LazyLocalSessionMeta):  # pylint: disable=R0903
