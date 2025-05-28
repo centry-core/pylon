@@ -11,6 +11,7 @@ RUN set -x \
   && apt-get install --no-install-recommends -y \
       dumb-init \
       supervisor \
+      postgresql-client \
       geoip-database \
       libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 \
       libcairo2 libcups2 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 \

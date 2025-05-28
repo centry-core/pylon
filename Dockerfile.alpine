@@ -2,7 +2,7 @@ FROM python:3.12-alpine
 WORKDIR /usr/src/app
 
 RUN set -x \
-  && apk add bash dumb-init supervisor vim alpine-sdk git libpq-dev libffi-dev curl dos2unix
+  && apk add bash dumb-init supervisor vim alpine-sdk git libpq-dev postgresql-client libffi-dev curl dos2unix
 
 RUN set -x \
   && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
