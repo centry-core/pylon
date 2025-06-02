@@ -40,8 +40,7 @@ def run_server(context):
     http_server.serve_forever()
 
 
-def _http_server_pre_start_hook(server, handler):
-    _ = server
+def _http_server_pre_start_hook(handler):
     from tools import context  # pylint: disable=E0401,C0415
     #
     route = context.socketio_route
