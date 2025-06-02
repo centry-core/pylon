@@ -248,6 +248,7 @@ class AppManager:  # pylint: disable=R0903,R0902
         socketio_log = self.context.settings.get("socketio", {}).get("log", False)
         socketio_route = f'/{socketio_path.strip("/")}/'
         #
+        self.context.socketio_route = socketio_route
         self.context.root_router.map[socketio_route] = socketio_app
         #
         if socketio_log and self.context.is_async:

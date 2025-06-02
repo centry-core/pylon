@@ -35,4 +35,21 @@ def run_server(context):
         **context.settings.get("server", {}).get("kwargs", {}),
     )
     #
+    setattr(http_server, "pre_start_hook", _http_server_pre_start_hook)
+    #
     http_server.serve_forever()
+
+
+def _http_server_pre_start_hook(server, handler):
+    _ = server
+    from tools import context  # pylint: disable=E0401,C0415
+    #
+    route = context.socketio_route
+    route_item = route.rstrip("/")
+    #
+    app_path = handler.environ.get("PATH_INFO", "")
+    #
+    if app_path.startswith(route) or app_path == route_item:
+        return False
+    #
+    return True
