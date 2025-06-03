@@ -30,7 +30,7 @@ def caller_module_name(skip=0):
     module_name = None
     to_skip = skip
     #
-    for frame_info in inspect.stack():
+    for frame_info in inspect.stack(context=0):
         caller_module = frame_info.frame.f_globals["__name__"]
         #
         if caller_module.startswith("plugins.") and to_skip <= 0:
