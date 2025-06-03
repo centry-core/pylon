@@ -28,16 +28,25 @@ from pylon.core.tools.context import Context
 def caller_module_name(skip=0):
     """ Find closest caller module """
     module_name = None
-    to_skip = skip
     #
-    for frame_info in inspect.stack(context=0):
-        caller_module = frame_info.frame.f_globals["__name__"]
+    to_skip = skip
+    frame = None
+    #
+    try:
+        frame = inspect.currentframe()
         #
-        if caller_module.startswith("plugins.") and to_skip <= 0:
-            module_name = caller_module.split(".")[1]
-            break
-        #
-        to_skip -= 1
+        while frame:
+            caller_module = frame.f_globals["__name__"]
+            #
+            if caller_module.startswith("plugins.") and to_skip <= 0:
+                module_name = caller_module.split(".")[1]
+                break
+            #
+            to_skip -= 1
+            frame = frame.f_back
+    finally:
+        if frame is not None:
+            del frame
     #
     return module_name
 
