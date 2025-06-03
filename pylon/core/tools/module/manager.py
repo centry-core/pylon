@@ -38,6 +38,7 @@ from pylon.core.tools import (
     db_support,
     ssl,
     config,
+    profiling,
 )
 
 from .proxy import (
@@ -445,6 +446,9 @@ class ModuleManager:  # pylint: disable=R0902
             module_descriptor.activated_bases = self.activated_bases.copy()
             self.activate_loader(module_descriptor.loader)
             #
+            log.debug("Initializing module: %s", module_descriptor.name)
+            profiling.profiling_start(self.context, f"module:init:{module_descriptor.name}")
+            #
             try:
                 module_pkg = importlib.import_module(f"plugins.{module_descriptor.name}.module")
                 module_obj = module_pkg.Module(
@@ -465,6 +469,8 @@ class ModuleManager:  # pylint: disable=R0902
             except:  # pylint: disable=W0702
                 log.exception("Failed to enable module: %s", module_descriptor.name)
                 continue
+            finally:
+                profiling.profiling_stop(self.context, f"module:init:{module_descriptor.name}")
             #
             self.modules[module_descriptor.name] = module_descriptor
             module_descriptor.activated = True
@@ -482,6 +488,9 @@ class ModuleManager:  # pylint: disable=R0902
         self._run_unready_callbacks()
         #
         for module_name in reversed(list(self.modules)):
+            log.debug("De-initializing module: %s", module_name)
+            profiling.profiling_start(self.context, f"module:deinit:{module_name}")
+            #
             try:
                 db_support.create_local_session()
                 try:
@@ -489,7 +498,9 @@ class ModuleManager:  # pylint: disable=R0902
                 finally:
                     db_support.close_local_session()
             except:  # pylint: disable=W0702
-                pass
+                log.exception("Failed to de-init module: %s", module_name)
+            finally:
+                profiling.profiling_stop(self.context, f"module:deinit:{module_name}")
         #
         # TODO: should we save plugin state after deinit automatically?
         #

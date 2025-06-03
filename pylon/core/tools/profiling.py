@@ -24,9 +24,20 @@ import cProfile
 from pylon.core.tools import log
 
 
+def profiling_enabled(context, stage):
+    """ Check if profiling is enabled for the stage """
+    if stage.startswith("module:init:"):
+        return context.profiling.get("stage", {}).get("module_inits", False)
+    #
+    if stage.startswith("module:deinit:"):
+        return context.profiling.get("stage", {}).get("module_deinits", False)
+    #
+    return context.profiling.get("stage", {}).get(stage, False)
+
+
 def profiling_start(context, stage):
     """ Enter profiling stage """
-    if context.profiling.get("stage", {}).get(stage, False):
+    if profiling_enabled(context, stage):
         log.info("Enabling profiling: %s", stage)
         #
         if "profile" not in context.profiling:
@@ -38,7 +49,7 @@ def profiling_start(context, stage):
 
 def profiling_stop(context, stage):
     """ Exit profiling stage """
-    if context.profiling.get("stage", {}).get(stage, False):
+    if profiling_enabled(context, stage):
         context.profiling["profile"][stage].disable()
         #
         stats_stream = io.StringIO()
