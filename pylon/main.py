@@ -202,7 +202,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Apply patches needed for pure-python git and providers
     git.apply_patches()
     # Save profiling settings
-    context.profiling = context.settings.get("system", {}).get("profiling", {})
+    context.profiling = context.settings.get("system", {}).get("profiling", {}).copy()
     #
     # Phase: core entity instances
     #
