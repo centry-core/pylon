@@ -30,6 +30,7 @@ import subprocess
 import importlib
 
 import pkg_resources
+import packaging.requirements
 
 from pylon.core.tools import (
     log,
@@ -245,7 +246,7 @@ class ModuleManager:  # pylint: disable=R0902
         module_meta_map = {}  # module_name -> (metadata, loader)
         #
         for module_name, module_metadata, module_loader in meta_items:
-            module_meta_map[module_name] = (module_metadata, module_loader)        
+            module_meta_map[module_name] = (module_metadata, module_loader)
         #
         return module_meta_map
 
@@ -406,7 +407,7 @@ class ModuleManager:  # pylint: disable=R0902
         #
         return cache_hash_chunks, module_site_paths, module_constraint_paths
 
-    def _activate_modules(self, module_descriptors):  # pylint: disable=R0914,R0915
+    def _activate_modules(self, module_descriptors):  # pylint: disable=R0912,R0914,R0915
         requirements_activation = self.settings["requirements"].get("activation", "steps")
         #
         if requirements_activation == "bulk":
@@ -432,6 +433,40 @@ class ModuleManager:  # pylint: disable=R0902
                         required_dependency, module_descriptor.name,
                     )
                     all_required_dependencies_present = False
+            #
+            version_requirements = module_descriptor.metadata.get("version_requirements", {})
+            #
+            if "pylon" in version_requirements:
+                pylon_requirement = packaging.requirements.Requirement(
+                    f'pylon {version_requirements["pylon"]}'
+                )
+                if not pylon_requirement.specifier.contains(
+                        self.context.pylon_version,
+                        prereleases=True,
+                ):
+                    log.error(
+                        "Pylon (%s) version is not satisfied: %s (required by %s)",
+                        self.context.pylon_version,
+                        version_requirements["pylon"], module_descriptor.name,
+                    )
+                    all_required_dependencies_present = False
+            #
+            for plugin_name, plugin_req_data in version_requirements.get("plugins", {}).items():
+                if plugin_name in self.descriptors:
+                    plugin_descriptor = self.descriptors[plugin_name]
+                    plugin_requirement = packaging.requirements.Requirement(
+                        f"{plugin_name} {plugin_req_data}"
+                    )
+                    plugin_version = plugin_descriptor.metadata.get("version", "0.0.0")
+                    if not plugin_requirement.specifier.contains(
+                            plugin_version,
+                            prereleases=True,
+                    ):
+                        log.error(
+                            "Plugin %s (%s) version is not satisfied: %s (required by %s)",
+                            plugin_name, plugin_version, plugin_req_data, module_descriptor.name,
+                        )
+                        all_required_dependencies_present = False
             #
             if not all_required_dependencies_present:
                 log.error("Skipping module: %s", module_descriptor.name)
