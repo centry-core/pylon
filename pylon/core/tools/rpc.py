@@ -106,6 +106,7 @@ class RpcManager:
             event_node,
             id_prefix=rpc_config.get("id_prefix", f"rpc_{self.context.id}_"),
             trace=rpc_config.get("trace", False),
+            proxy_timeout=rpc_config.get("default_timeout", None),
         )
         self.node.start()
         #
