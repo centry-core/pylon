@@ -686,6 +686,30 @@ class ModuleManager:  # pylint: disable=R0902
             c_args.append("--trusted-host")
             c_args.append(trusted_host)
         #
+        index_url = self.settings["requirements"].get("index_url", None)
+        extra_index_url = self.settings["requirements"].get("extra_index_url", None)
+        no_index = self.settings["requirements"].get("no_index", False)
+        find_links = self.settings["requirements"].get("find_links", None)
+        require_hashes = self.settings["requirements"].get("require_hashes", False)
+        #
+        if index_url is not None:
+            c_args.append("--index-url")
+            c_args.append(index_url)
+        #
+        if extra_index_url is not None:
+            c_args.append("--extra-index-url")
+            c_args.append(extra_index_url)
+        #
+        if no_index:
+            c_args.append("--no-index")
+        #
+        if find_links is not None:
+            c_args.append("--find-links")
+            c_args.append(find_links)
+        #
+        if require_hashes:
+            c_args.append("--require-hashes")
+        #
         for retry in range(retries):
             try:
                 return process.run_command(
