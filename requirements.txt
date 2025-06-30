@@ -44,7 +44,7 @@ pydantic==1.10.21
 certifi==2025.1.31
 
 # HTTP
-urllib3==2.3.0
+urllib3==2.5.0
 requests==2.32.4
 #
 idna==3.10
