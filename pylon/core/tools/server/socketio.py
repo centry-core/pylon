@@ -106,6 +106,9 @@ def create_client_manager(context):
             queue = socketio_redis.get("queue", "socketio")
             use_ssl = socketio_redis.get("use_ssl", False)
             #
+            if password is None:
+                password = ""
+            #
             scheme = "rediss" if use_ssl else "redis"
             url = f'{scheme}://:{password}@{host}:{port}/{database}'
             #
