@@ -25,6 +25,7 @@ RUN set -x \
       dos2unix \
       poppler-data poppler-utils libpoppler-cpp0v5 libpoppler-glib8 \
       tesseract-ocr-all \
+      ripgrep \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
