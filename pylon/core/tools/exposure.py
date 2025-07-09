@@ -168,7 +168,7 @@ def expose(context):
         context.exposure.zmq_socket_pub.bind(zmq_config.get("bind_pub", "tcp://*:5010"))
         #
         context.exposure.zmq_socket_pull = context.exposure.zmq_ctx.socket(zmq.PULL)
-        context.exposure.zmq_socket_pull.bind(zmq_config.get("bind_pub", "tcp://*:5011"))
+        context.exposure.zmq_socket_pull.bind(zmq_config.get("bind_pull", "tcp://*:5011"))
         #
         context.exposure.threads.zeromq_server = ZeroMQServer(context)
         context.exposure.threads.zeromq_server.start()
