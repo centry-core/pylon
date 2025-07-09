@@ -31,6 +31,7 @@ import http.server
 
 import flask  # pylint: disable=E0401
 import arbiter  # pylint: disable=E0401
+import zmq  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools.context import Context
@@ -53,6 +54,9 @@ def expose(context):
     context.exposure.stop_event = threading.Event()
     context.exposure.event_node = None
     context.exposure.rpc_node = None
+    context.exposure.zmq_ctx = None
+    context.exposure.zmq_socket_pub = None
+    context.exposure.zmq_socket_pull = None
     context.exposure.registry = {}
     context.exposure.threads = Context()
     #
@@ -150,9 +154,24 @@ def expose(context):
         context.exposure.threads.announcer = ExposureAnnoucer(context)
         context.exposure.threads.announcer.start()
     #
-    # To improve:
+    # ^ To improve:
     # - streaming, caching and so on
-
+    #
+    # ZMQ
+    #
+    zmq_config = config.get("zmq", {})
+    #
+    if zmq_config.get("enabled", False):
+        context.exposure.zmq_ctx = zmq.Context()
+        #
+        context.exposure.zmq_socket_pub = context.exposure.zmq_ctx.socket(zmq.PUB)
+        context.exposure.zmq_socket_pub.bind(zmq_config.get("bind_pub", "tcp://*:5010"))
+        #
+        context.exposure.zmq_socket_pull = context.exposure.zmq_ctx.socket(zmq.PULL)
+        context.exposure.zmq_socket_pull.bind(zmq_config.get("bind_pub", "tcp://*:5011"))
+        #
+        context.exposure.threads.zeromq_server = ZeroMQServer(context)
+        context.exposure.threads.zeromq_server.start()
 
 def unexpose(context):
     """ Unexpose this pylon over pylon network """
@@ -212,7 +231,23 @@ def unexpose(context):
             "pylon_exposed", on_pylon_exposed
         )
     #
+    # ZMQ?
+    #
+    zmq_config = config.get("zmq", {})
+    #
+    if zmq_config.get("enabled", False):
+        context.exposure.zmq_socket_pull.close(linger=10)
+        context.exposure.zmq_socket_pub.close(linger=10)
+        context.exposure.zmq_ctx.term()
+        #
+        context.exposure.threads.zeromq_server.join(timeout=15)
+    #
+    # RpcNode
+    #
     context.exposure.rpc_node.stop()
+    #
+    # EventNode
+    #
     context.exposure.event_node.stop()
 
 
@@ -433,6 +468,24 @@ def sio_call(event, namespace, args):
     except:  # pylint: disable=W0702
         if not context.is_async:
             log.exception("Failed to trigger SIO exposure event")
+
+
+class ZeroMQServer(threading.Thread):  # pylint: disable=R0903
+    """ ZeroMQ: push from pull """
+
+    def __init__(self, context):
+        super().__init__(daemon=True)
+        self.context = context
+
+    def run(self):
+        """ Run thread """
+        #
+        while not self.context.exposure.stop_event.is_set():
+            try:
+                frame = self.context.exposure.zmq_socket_pull.recv_multipart()
+                self.context.exposure.zmq_socket_pub.send_multipart(frame)
+            except:  # pylint: disable=W0702
+                log.exception("Exception in ZeroMQ server thread, continuing")
 
 
 class ExposureAnnoucer(threading.Thread):  # pylint: disable=R0903
