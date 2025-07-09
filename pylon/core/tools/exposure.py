@@ -31,7 +31,6 @@ import http.server
 
 import flask  # pylint: disable=E0401
 import arbiter  # pylint: disable=E0401
-import zmq  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools.context import Context
@@ -162,6 +161,11 @@ def expose(context):
     zmq_config = config.get("zmq", {})
     #
     if zmq_config.get("enabled", False):
+        if context.web_runtime == "gevent":
+            import zmq.green as zmq  # pylint: disable=C0415,E0401
+        else:
+            import zmq  # pylint: disable=C0415,E0401
+        #
         context.exposure.zmq_ctx = zmq.Context()
         #
         context.exposure.zmq_socket_pub = context.exposure.zmq_ctx.socket(zmq.PUB)
