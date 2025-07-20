@@ -28,14 +28,23 @@ from pylon.core.tools import log
 class EventManager:
     """ Simple event manager """
 
-    def __init__(self, context):
+    def __init__(self, context):  # pylint: disable=R0915
         self.context = context
         #
+        events_event_node = self.context.settings.get("events", {}).get("event_node", {})
         events_rabbitmq = self.context.settings.get("events", {}).get("rabbitmq", {})
         events_redis = self.context.settings.get("events", {}).get("redis", {})
         events_socketio = self.context.settings.get("events", {}).get("socketio", {})
         #
-        if events_rabbitmq:
+        if events_event_node:
+            try:
+                self.node = arbiter.make_event_node(config=events_event_node)
+                self.node.start()
+            except:  # pylint: disable=W0702
+                log.exception("Cannot make EventNode instance, using local events only")
+                self.node = arbiter.MockEventNode()
+                self.node.start()
+        elif events_rabbitmq:
             try:
                 ssl_context=None
                 ssl_server_hostname=None

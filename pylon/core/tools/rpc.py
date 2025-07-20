@@ -31,11 +31,19 @@ class RpcManager:
         self.context = context
         #
         rpc_config = self.context.settings.get("rpc", {})
+        #
+        rpc_event_node = rpc_config.get("event_node", {})
         rpc_rabbitmq = rpc_config.get("rabbitmq", {})
         rpc_redis = rpc_config.get("redis", {})
         rpc_socketio = rpc_config.get("socketio", {})
         #
-        if rpc_rabbitmq:
+        if rpc_event_node:
+            try:
+                event_node = arbiter.make_event_node(config=rpc_event_node)
+            except:  # pylint: disable=W0702
+                log.exception("Cannot make EventNode instance, using local RPC only")
+                event_node = arbiter.MockEventNode()
+        elif rpc_rabbitmq:
             try:
                 ssl_context=None
                 ssl_server_hostname=None
