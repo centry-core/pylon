@@ -157,6 +157,7 @@ def expose(context):
     # - streaming, caching and so on
     #
     # ZMQ
+    # TODO: start first, stop last
     #
     zmq_config = config.get("zmq", {})
     #
