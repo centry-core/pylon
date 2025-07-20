@@ -64,10 +64,24 @@ def expose(context):
     # Config
     #
     config = context.exposure.config
-    if not config or "event_node" not in config:
+    if not config:
         return
     #
+    # ZMQ
+    #
+    zmq_config = config.get("zmq", {})
+    #
+    if zmq_config.get("enabled", False):
+        context.exposure.zmq_server = arbiter.ZeroMQServerNode(
+            bind_pub=zmq_config.get("bind_pub", "tcp://*:5010"),
+            bind_pull=zmq_config.get("bind_pull", "tcp://*:5011"),
+        )
+        context.exposure.zmq_server.start()
+    #
     # EventNode
+    #
+    if "event_node" not in config:
+        return
     #
     context.exposure.event_node = arbiter.make_event_node(
         config=config.get("event_node"),
@@ -155,18 +169,6 @@ def expose(context):
     #
     # ^ To improve:
     # - streaming, caching and so on
-    #
-    # ZMQ
-    # TODO: start first, stop last
-    #
-    zmq_config = config.get("zmq", {})
-    #
-    if zmq_config.get("enabled", False):
-        context.exposure.zmq_server = arbiter.ZeroMQServerNode(
-            bind_pub=zmq_config.get("bind_pub", "tcp://*:5010"),
-            bind_pull=zmq_config.get("bind_pull", "tcp://*:5011"),
-        )
-        context.exposure.zmq_server.start()
 
 def unexpose(context):
     """ Unexpose this pylon over pylon network """
@@ -178,8 +180,7 @@ def unexpose(context):
     #
     log.info("Unexposing pylon")
     #
-    if context.exposure.event_node is None:
-        return
+    have_event_node = context.exposure.event_node is not None
     #
     context.exposure.stop_event.set()
     #
@@ -187,7 +188,7 @@ def unexpose(context):
     #
     config = context.exposure.config
     #
-    if config.get("expose", False):
+    if config.get("expose", False) and have_event_node:
         context.exposure.threads.announcer.join(timeout=5)
         #
         context.exposure.event_node.emit(
@@ -213,7 +214,7 @@ def unexpose(context):
     #
     handle_config = config.get("handle", {})
     #
-    if handle_config.get("enabled", False):
+    if handle_config.get("enabled", False) and have_event_node:
         context.exposure.threads.pinger.join(timeout=15)
         #
         context.sio.pylon_remove_any_handler(on_sio)
@@ -226,20 +227,22 @@ def unexpose(context):
             "pylon_exposed", on_pylon_exposed
         )
     #
+    # RpcNode?
+    #
+    if have_event_node:
+        context.exposure.rpc_node.stop()
+    #
+    # EventNode?
+    #
+    if have_event_node:
+        context.exposure.event_node.stop()
+    #
     # ZMQ?
     #
     zmq_config = config.get("zmq", {})
     #
     if zmq_config.get("enabled", False):
         context.exposure.zmq_server.stop()
-    #
-    # RpcNode
-    #
-    context.exposure.rpc_node.stop()
-    #
-    # EventNode
-    #
-    context.exposure.event_node.stop()
 
 
 def on_pylon_exposed(event_name, event_payload):
