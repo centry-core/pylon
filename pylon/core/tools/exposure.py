@@ -161,21 +161,11 @@ def expose(context):
     zmq_config = config.get("zmq", {})
     #
     if zmq_config.get("enabled", False):
-        if context.web_runtime == "gevent":
-            import zmq.green as zmq  # pylint: disable=C0415,E0401
-        else:
-            import zmq  # pylint: disable=C0415,E0401
-        #
-        context.exposure.zmq_ctx = zmq.Context()
-        #
-        context.exposure.zmq_socket_pub = context.exposure.zmq_ctx.socket(zmq.PUB)
-        context.exposure.zmq_socket_pub.bind(zmq_config.get("bind_pub", "tcp://*:5010"))
-        #
-        context.exposure.zmq_socket_pull = context.exposure.zmq_ctx.socket(zmq.PULL)
-        context.exposure.zmq_socket_pull.bind(zmq_config.get("bind_pull", "tcp://*:5011"))
-        #
-        context.exposure.threads.zeromq_server = ZeroMQServer(context)
-        context.exposure.threads.zeromq_server.start()
+        context.exposure.zmq_server = arbiter.ZeroMQServerNode(
+            bind_pub=zmq_config.get("bind_pub", "tcp://*:5010"),
+            bind_pull=zmq_config.get("bind_pull", "tcp://*:5011"),
+        )
+        context.exposure.zmq_server.start()
 
 def unexpose(context):
     """ Unexpose this pylon over pylon network """
@@ -240,11 +230,7 @@ def unexpose(context):
     zmq_config = config.get("zmq", {})
     #
     if zmq_config.get("enabled", False):
-        context.exposure.zmq_socket_pull.close(linger=10)
-        context.exposure.zmq_socket_pub.close(linger=10)
-        context.exposure.zmq_ctx.term()
-        #
-        context.exposure.threads.zeromq_server.join(timeout=15)
+        context.exposure.zmq_server.stop()
     #
     # RpcNode
     #
@@ -472,24 +458,6 @@ def sio_call(event, namespace, args):
     except:  # pylint: disable=W0702
         if not context.is_async:
             log.exception("Failed to trigger SIO exposure event")
-
-
-class ZeroMQServer(threading.Thread):  # pylint: disable=R0903
-    """ ZeroMQ: push from pull """
-
-    def __init__(self, context):
-        super().__init__(daemon=True)
-        self.context = context
-
-    def run(self):
-        """ Run thread """
-        #
-        while not self.context.exposure.stop_event.is_set():
-            try:
-                frame = self.context.exposure.zmq_socket_pull.recv_multipart()
-                self.context.exposure.zmq_socket_pub.send_multipart(frame)
-            except:  # pylint: disable=W0702
-                log.exception("Exception in ZeroMQ server thread, continuing")
 
 
 class ExposureAnnoucer(threading.Thread):  # pylint: disable=R0903
