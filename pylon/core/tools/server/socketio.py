@@ -72,6 +72,8 @@ def create_client_manager(context):
     client_manager = None
     #
     socketio_config = context.settings.get("socketio", {})
+    #
+    # TODO: EventNodePubSubManager
     socketio_rabbitmq = socketio_config.get("rabbitmq", {})
     socketio_redis = socketio_config.get("redis", {})
     #

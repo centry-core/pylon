@@ -47,6 +47,7 @@ def make_session_interface(context):
     session_prefix = sessions_config.get("prefix", None)
     session_permanent = sessions_config.get("permanent", True)
     #
+    # TODO: KeyValueNodeSessionInterface
     redis_config = sessions_config.get("redis", {})
     memory_config = sessions_config.get("memory", {})
     # Target
