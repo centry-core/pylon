@@ -28,6 +28,8 @@ from pylon.core.tools import log
 
 def init_context(context):
     """ Add server-related data to context """
+    context.server_mode = context.settings.get("server", {}).get("mode", "web")
+    #
     context.url_prefix = context.settings.get("server", {}).get("path", "/")
     while context.url_prefix.endswith("/"):
         context.url_prefix = context.url_prefix[:-1]
@@ -45,10 +47,17 @@ def init_context(context):
 
 def run_server(context):
     """ Run A/WSGI server """
-    log.info("Starting %s server", context.web_runtime)
-    #
-    runtime = importlib.import_module(f"pylon.core.tools.server.{context.web_runtime}")
-    runtime.run_server(context)
+    if context.server_mode == "web":
+        log.info("Starting %s server", context.web_runtime)
+        #
+        runtime = importlib.import_module(f"pylon.core.tools.server.{context.web_runtime}")
+        runtime.run_server(context)
+    elif context.server_mode == "block":
+        log.info("Blocking until stop_event is set")
+        #
+        context.stop_event.wait()
+    else:  # oneshot
+        return
 
 
 def restart():
