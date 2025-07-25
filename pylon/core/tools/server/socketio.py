@@ -20,6 +20,7 @@
 import threading
 
 import socketio  # pylint: disable=E0401
+import arbiter  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import db_support
@@ -67,17 +68,26 @@ def create_socketio_instance(context):  # pylint: disable=R0914,R0912,R0915
         )
 
 
-def create_client_manager(context):
+def create_client_manager(context):  # pylint: disable=R0914
     """ Make client_manager instance """
     client_manager = None
     #
     socketio_config = context.settings.get("socketio", {})
     #
     # TODO: EventNodePubSubManager
+    socketio_event_node = socketio_config.get("event_node", {})
     socketio_rabbitmq = socketio_config.get("rabbitmq", {})
     socketio_redis = socketio_config.get("redis", {})
     #
-    if socketio_rabbitmq:
+    if socketio_event_node:
+        event_node = arbiter.make_event_node(config=socketio_event_node)
+        event_node.start()
+        #
+        if context.is_async:
+            pass
+        else:
+            pass
+    elif socketio_rabbitmq:
         try:
             host = socketio_rabbitmq.get("host")
             port = socketio_rabbitmq.get("port", 5672)
@@ -98,8 +108,7 @@ def create_client_manager(context):
                 )
         except:  # pylint: disable=W0702
             log.exception("Cannot make KombuManager instance, SocketIO is in standalone mode")
-    #
-    if socketio_redis:
+    elif socketio_redis:
         try:
             host = socketio_redis.get("host")
             port = socketio_redis.get("port", 6379)
@@ -128,7 +137,7 @@ def create_client_manager(context):
     return client_manager
 
 
-class SIOEventHandler:
+class SIOEventHandler:  # pylint: disable=R0903
     """ Pylon SocketIO Event handler """
 
     def __init__(self):
@@ -158,7 +167,7 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
         with self.pylon_emit_lock:
             return super().emit(*args, **kwargs)
 
-    def on(self, event, handler=None, namespace=None):
+    def on(self, event, handler=None, namespace=None):  # pylint: disable=C0103
         """ Register an event handler """
         namespace = namespace or '/'
         #
@@ -238,7 +247,7 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
         self.pylon_any_handlers.remove(handler)
 
 
-class SIOAsyncEventHandler:
+class SIOAsyncEventHandler:  # pylint: disable=R0903
     """ Pylon SocketIO Async Event handler """
 
     def __init__(self):
@@ -267,7 +276,7 @@ class SIOPatchedAsyncServer(socketio.AsyncServer):  # pylint: disable=R0903
         #
         super().__init__(*args, **kwargs)
 
-    def on(self, event, handler=None, namespace=None):
+    def on(self, event, handler=None, namespace=None):  # pylint: disable=C0103
         """ Register an event handler """
         namespace = namespace or '/'
         #
@@ -384,7 +393,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
         log.warning("[SIOAsyncProxy NotImplemented] %s", name)
         raise AttributeError
 
-    def on(self, event, handler=None, namespace=None):
+    def on(self, event, handler=None, namespace=None):  # pylint: disable=C0103
         """ Proxy method """
         return self.context.sio_async.on(event, handler, namespace)
 

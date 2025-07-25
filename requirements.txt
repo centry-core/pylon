@@ -111,6 +111,7 @@ waitress==3.0.2
 # Async
 asgiref==3.8.1
 asyncio==3.4.3
+janus==2.0.0
 
 # Hypercorn
 Hypercorn==0.17.3
