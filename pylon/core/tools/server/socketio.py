@@ -18,9 +18,14 @@
 """ Server """
 
 import threading
+from queue import SimpleQueue, Empty
+
+import arbiter  # pylint: disable=E0401
+import janus  # pylint: disable=E0401
 
 import socketio  # pylint: disable=E0401
-import arbiter  # pylint: disable=E0401
+from socketio.pubsub_manager import PubSubManager  # pylint: disable=E0401
+from socketio.async_pubsub_manager import AsyncPubSubManager  # pylint: disable=E0401
 
 from pylon.core.tools import log
 from pylon.core.tools import db_support
@@ -68,25 +73,45 @@ def create_socketio_instance(context):  # pylint: disable=R0914,R0912,R0915
         )
 
 
-def create_client_manager(context):  # pylint: disable=R0914
+def create_client_manager(context):  # pylint: disable=R0912,R0914,R0915
     """ Make client_manager instance """
     client_manager = None
     #
     socketio_config = context.settings.get("socketio", {})
     #
-    # TODO: EventNodePubSubManager
     socketio_event_node = socketio_config.get("event_node", {})
     socketio_rabbitmq = socketio_config.get("rabbitmq", {})
     socketio_redis = socketio_config.get("redis", {})
     #
+    socketio_channel = socketio_config.get("channel", "socketio")
+    #
     if socketio_event_node:
-        event_node = arbiter.make_event_node(config=socketio_event_node)
-        event_node.start()
-        #
-        if context.is_async:
-            pass
-        else:
-            pass
+        # Note: currently there is no way to properly close entities on shutdown
+        try:
+            event_node = arbiter.make_event_node(config=socketio_event_node)
+            event_node.start()
+            #
+            if context.is_async:
+                publish_queue = janus.Queue()
+                listen_queue = janus.Queue()
+                #
+                forwarder = SIOSyncEventNodeForwarder(
+                    event_node, socketio_channel,
+                    publish_queue=publish_queue.sync_q,
+                    listen_queue=listen_queue.sync_q,
+                )
+                forwarder.start()
+                #
+                client_manager = SIOAsyncEventNodeManager(
+                    event_node,
+                    publish_queue=publish_queue.async_q,
+                    listen_queue=listen_queue.async_q,
+                    channel=socketio_channel,
+                )
+            else:
+                client_manager = SIOEventNodeManager(event_node, channel=socketio_channel)
+        except:  # pylint: disable=W0702
+            log.exception("Cannot make EventNodeManager instance, SocketIO is in standalone mode")
     elif socketio_rabbitmq:
         try:
             host = socketio_rabbitmq.get("host")
@@ -135,6 +160,123 @@ def create_client_manager(context):  # pylint: disable=R0914
             log.exception("Cannot make RedisManager instance, SocketIO is in standalone mode")
     #
     return client_manager
+
+
+class SIOSyncEventNodeForwarder(threading.Thread):
+    """ Send/Receive to/from queues """
+
+    def __init__(self, event_node, socketio_channel, publish_queue, listen_queue):
+        super().__init__(daemon=True)
+        #
+        self.event_node = event_node
+        self.socketio_channel = socketio_channel
+        #
+        self.publish_queue = publish_queue
+        self.listen_queue = listen_queue
+        #
+        self.queue_get_timeout = 1
+        #
+        self.event_node.subscribe("socketio_manager_data", self.__on_manager_data)
+
+    def run(self):
+        """ Thread entrypoint """
+        while not self.event_node.stop_event.is_set():
+            try:
+                data = self.publish_queue.get(timeout=self.queue_get_timeout)
+                #
+                self.event_node.emit(
+                    "socketio_manager_data",
+                    {
+                        "channel": self.socketio_channel,
+                        "data": data,
+                    },
+                )
+            except Empty:
+                pass
+            except:  # pylint: disable=W0702
+                log.exception("Error during data publishing, skipping")
+
+    def __on_manager_data(self, _event_name, event_payload):
+        if not isinstance(event_payload, dict):
+            return
+        #
+        if event_payload.get("channel", None) != self.socketio_channel:
+            return
+        #
+        if event_payload.get("data", None) is None:
+            return
+        #
+        self.listen_queue.put(event_payload.get("data"))
+
+
+class SIOAsyncEventNodeManager(AsyncPubSubManager):  # pylint: disable=R0903
+    """ Pylon SocketIO EventNode-based AsyncPubSubManager """
+
+    def __init__(  # pylint: disable=R0913
+            self, event_node, publish_queue, listen_queue,
+            channel="socketio", write_only=False, logger=None,
+    ):
+        super().__init__(channel=channel, write_only=write_only, logger=logger)
+        #
+        self.event_node = event_node
+        self.channel = channel
+        #
+        self.publish_queue = publish_queue
+        self.listen_queue = listen_queue
+
+    async def _publish(self, data):
+        await self.publish_queue.put(data)
+
+    async def _listen(self):
+        while True:
+            data = await self.listen_queue.get()
+            yield data
+
+
+class SIOEventNodeManager(PubSubManager):  # pylint: disable=R0903
+    """ Pylon SocketIO EventNode-based PubSubManager """
+
+    def __init__(self, event_node, channel="socketio", write_only=False, logger=None):
+        super().__init__(channel=channel, write_only=write_only, logger=logger)
+        #
+        self.event_node = event_node
+        self.channel = channel
+        #
+        self.data_queue = SimpleQueue()
+        self.queue_get_timeout = 1
+        #
+        self.event_node.subscribe("socketio_manager_data", self.__on_manager_data)
+
+    def __on_manager_data(self, _event_name, event_payload):
+        if not isinstance(event_payload, dict):
+            return
+        #
+        if event_payload.get("channel", None) != self.channel:
+            return
+        #
+        if event_payload.get("data", None) is None:
+            return
+        #
+        self.data_queue.put(event_payload.get("data"))
+
+    def _publish(self, data):
+        self.event_node.emit(
+            "socketio_manager_data",
+            {
+                "channel": self.channel,
+                "data": data,
+            },
+        )
+
+    def _listen(self):
+        while not self.event_node.stop_event.is_set():
+            try:
+                data = self.data_queue.get(timeout=self.queue_get_timeout)
+                yield data
+            except Empty:
+                pass
+            except:  # pylint: disable=W0702
+                log.exception("Error during data listening, skipping")
 
 
 class SIOEventHandler:  # pylint: disable=R0903
