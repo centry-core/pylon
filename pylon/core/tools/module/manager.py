@@ -59,7 +59,10 @@ class ModuleManager:  # pylint: disable=R0902
 
     def __init__(self, context):
         self.context = context
+        #
         self.settings = self.context.settings.get("modules", {})
+        self.setting_overrides = {}  # TODO: allow bootstrap to override without using live config
+        #
         self.providers = {}  # object_type -> provider_instance
         self.descriptors = {}  # module_name -> module_descriptor (all)
         self.modules = {}  # module_name -> module_descriptor (enabled)
