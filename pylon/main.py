@@ -90,6 +90,7 @@ from pylon.core.tools.signal import ZombieReaper
 from pylon.core.tools.context import Context
 
 from pylon.framework import toolkit
+from pylon.framework import router
 
 
 def main():  # pylint: disable=R0912,R0914,R0915
@@ -243,6 +244,11 @@ def main():  # pylint: disable=R0912,R0914,R0915
     server.init_context(context)
     # Init app hierarchy
     context.app_manager.init_hierarchy()
+    #
+    # Phase: router
+    #
+    # Init framework router
+    router.init(context)
     #
     # Phase: modules
     #
