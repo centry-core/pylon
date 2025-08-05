@@ -46,7 +46,7 @@ def init(context):
             context.app.context_processor(lambda: {"tools": tools})
         #
         if router_config.get("enable_before_request_hook", True):
-            context.app.after_request(context.router.before_request_hook)
+            context.app.before_request(context.router.before_request_hook)
         #
         if router_config.get("enable_after_request_hook", True):
             context.app.after_request(context.router.after_request_hook)
