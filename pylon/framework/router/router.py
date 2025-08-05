@@ -28,11 +28,12 @@ from pylon.core.tools.context import Context  # pylint: disable=E0401
 # TODO:
 # - static files
 # - public routes
+# - RPC kind with request wrapping
 # - register default mode?
 #
 
 
-# pylint: disable=R0902
+# pylint: disable=R0902,R0904
 class Router:
     """ Router """
 
