@@ -697,7 +697,7 @@ class Router:
                 visible_sections = self.visible_sections(mode=mode)
                 if visible_sections:
                     target_url = self.make_url(
-                        mode=mode,
+                        mode=router_state.raw_mode,
                         section=visible_sections[0]["key"],
                         subsection=None,
                         page=None,
@@ -710,7 +710,7 @@ class Router:
                 visible_subsections = self.visible_subsections(mode=mode, section=section)
                 if visible_subsections:
                     target_url = self.make_url(
-                        mode=mode,
+                        mode=router_state.raw_mode,
                         section=section,
                         subsection=visible_subsections[0]["key"],
                         page=None,
