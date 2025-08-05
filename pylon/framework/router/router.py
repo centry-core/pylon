@@ -26,7 +26,6 @@ from pylon.core.tools.context import Context  # pylint: disable=E0401
 
 #
 # TODO:
-# - error handler (off by default)
 # - static files
 # - public routes
 # - register default mode?
@@ -46,6 +45,10 @@ class Router:
         #
         self.registry = {}  # mode -> section -> subsection -> page (all via 'items')
         #
+        self.before_request_handler = None
+        self.after_request_handler = None
+        self.error_handler = None
+        #
         self.access_denied_handler = None
         self.not_found_handler = None
         self.bad_request_handler = None
@@ -58,6 +61,9 @@ class Router:
         #
         self.parameter_processor = None
         self.parameter_enumerator = None
+        #
+        self.default_template = self.config.get("default_template", "theme:index.html")
+        self.default_template_kwargs = self.config.get("default_template_kwargs", {})
         #
         self.slot_template = self.config.get("slot_template", "theme:index.html")
         self.slot_logout_url = self.config.get("slot_logout_url", "#")
@@ -100,6 +106,11 @@ class Router:
     # Hooks
     #
 
+    def before_request_hook(self):
+        """ Hook """
+        if self.before_request_handler is not None:
+            self.before_request_handler()
+
     def after_request_hook(self, response):
         """ Hook """
         additional_headers = self.config.get(
@@ -115,7 +126,17 @@ class Router:
             if key not in response.headers:
                 response.headers[key] = value
         #
+        if self.after_request_handler is not None:
+            return self.after_request_handler(response)
+        #
         return response
+
+    def error_handler_hook(self, error):
+        """ Hook """
+        if self.error_handler is not None:
+            return self.error_handler(error)
+        #
+        return error
 
     #
     # Visible entities
@@ -726,9 +747,11 @@ class Router:
             target_kwargs = target["kind_kwargs"].get("method_kwargs", {})
             return target_method(**target_kwargs)
         #
-        if target_kind == "template" and "template" in target.get("kind_kwargs", {}):
-            target_template = target["kind_kwargs"]["template"]
-            target_kwargs = target["kind_kwargs"].get("template_kwargs", {})
+        if target_kind == "template":
+            kind_kwargs = target.get("kind_kwargs", {})
+            target_template = kind_kwargs.get("template", self.default_template)
+            target_kwargs = self.default_template_kwargs.copy()
+            target_kwargs.update(kind_kwargs.get("template_kwargs", {}))
             return flask.render_template(target_template, **target_kwargs)
         #
         if target_kind == "holder":

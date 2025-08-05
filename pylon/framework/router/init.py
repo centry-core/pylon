@@ -41,12 +41,18 @@ def init(context):
         add_router_routes(context.router)
         context.app_router.map["/"] = router_app
         #
-        if router_config.get("enable_tools", True):
+        if router_config.get("enable_context_processor_tools", True):
             import tools  # pylint: disable=E0401
             context.app.context_processor(lambda: {"tools": tools})
         #
-        if router_config.get("enable_headers_hook", True):
+        if router_config.get("enable_before_request_hook", True):
+            context.app.after_request(context.router.before_request_hook)
+        #
+        if router_config.get("enable_after_request_hook", True):
             context.app.after_request(context.router.after_request_hook)
+        #
+        if router_config.get("enable_error_handler_hook", True):
+            context.app.errorhandler(Exception)(context.router.error_handler_hook)
         #
         setattr(sys.modules["tools"], "router", context.router)
 
