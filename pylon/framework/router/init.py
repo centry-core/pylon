@@ -45,6 +45,8 @@ def init(context):
         #
         if router_config.get("enable_headers_hook", True):
             context.app.after_request(context.router.after_request_hook)
+        #
+        # TODO: save as a router tool too?
 
 
 def add_router_routes(router):
