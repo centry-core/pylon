@@ -29,6 +29,7 @@ from pylon.core.tools.context import Context  # pylint: disable=E0401
 # - error handler (off by default)
 # - static files
 # - public routes
+# - register default mode?
 #
 
 
