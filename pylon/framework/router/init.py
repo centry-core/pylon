@@ -18,6 +18,8 @@
 
 """ Toolkit """
 
+import sys
+
 from pylon.core.tools import log
 
 
@@ -46,7 +48,7 @@ def init(context):
         if router_config.get("enable_headers_hook", True):
             context.app.after_request(context.router.after_request_hook)
         #
-        # TODO: save as a router tool too?
+        setattr(sys.modules["tools"], "router", context.router)
 
 
 def add_router_routes(router):
