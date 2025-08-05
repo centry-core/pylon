@@ -24,6 +24,14 @@ from pylon.core.tools import log  # pylint: disable=E0611,E0401,W0611
 from pylon.core.tools.context import Context  # pylint: disable=E0401
 
 
+#
+# TODO:
+# - error handler (off by default)
+# - static files
+# - public routes
+#
+
+
 # pylint: disable=R0902
 class Router:
     """ Router """
