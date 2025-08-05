@@ -27,9 +27,12 @@ from pylon.core.tools.context import Context  # pylint: disable=E0401
 #
 # TODO:
 # - static files
-# - public routes
 # - RPC kind with request wrapping
-# - register default mode?
+# - register default mode
+# - before request - https redirect
+# - after request - CORS
+# - public routes?
+# - API classes?
 #
 
 
