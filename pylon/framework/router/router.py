@@ -448,6 +448,45 @@ class Router:
     # pylint: disable=R0911,R0913,R0915
     def make_url(
             self,
+            mode=..., section=..., subsection=..., page=...,
+            parameter=...,
+            slash=...,
+            router_state=None,
+    ):
+        """ Method """
+        if router_state is None:
+            try:
+                router_state = flask.g.router
+            except:  # pylint: disable=W0702
+                router_state = None
+        #
+        if mode is ... and router_state is not None:
+            mode = router_state.raw_mode
+        #
+        if section is ... and router_state is not None:
+            section = router_state.section
+        #
+        if subsection is ... and router_state is not None:
+            subsection = router_state.subsection
+        #
+        if page is ... and router_state is not None:
+            page = router_state.page
+        #
+        if parameter is ... and router_state is not None:
+            parameter = router_state.parameter
+        #
+        if slash is ... and router_state is not None:
+            slash = router_state.slash
+        #
+        return self.make_target_url(
+            mode=mode, section=section, subsection=subsection, page=page,
+            parameter=parameter,
+            slash=slash,
+        )
+
+    # pylint: disable=R0911,R0913,R0915
+    def make_target_url(
+            self,
             mode=None, section=None, subsection=None, page=None,
             parameter=None,
             slash=None,
@@ -696,7 +735,7 @@ class Router:
             if target_type == "mode":
                 visible_sections = self.visible_sections(mode=mode)
                 if visible_sections:
-                    target_url = self.make_url(
+                    target_url = self.make_target_url(
                         mode=router_state.raw_mode,
                         section=visible_sections[0]["key"],
                         subsection=None,
@@ -709,7 +748,7 @@ class Router:
             if target_type == "section":
                 visible_subsections = self.visible_subsections(mode=mode, section=section)
                 if visible_subsections:
-                    target_url = self.make_url(
+                    target_url = self.make_target_url(
                         mode=router_state.raw_mode,
                         section=section,
                         subsection=visible_subsections[0]["key"],
