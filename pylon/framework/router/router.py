@@ -33,6 +33,7 @@ from pylon.core.tools.context import Context  # pylint: disable=E0401
 # - after request - CORS
 # - public routes?
 # - API classes?
+# - use caller_module_name for template prefixes?
 #
 
 
