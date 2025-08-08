@@ -82,7 +82,8 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         #
         base_config_data = {}
         if self.loader.has_file("config.yml"):
-            base_config_data = self._load_yaml_data(self.loader.get_data("config.yml"), "base")
+            self.config_data = self.loader.get_data("config.yml")
+            base_config_data = self._load_yaml_data(self.config_data, "base")
         #
         pylon_config_data = self.context.settings.get("configs", {}).get(self.name, {})
         #
