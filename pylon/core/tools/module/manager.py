@@ -61,7 +61,7 @@ class ModuleManager:  # pylint: disable=R0902
         self.context = context
         #
         self.settings = self.context.settings.get("modules", {})
-        self.setting_overrides = {}  # TODO: allow bootstrap to override without using live config
+        self.setting_overrides = {}  # allow to override without using live config
         #
         self.providers = {}  # object_type -> provider_instance
         self.descriptors = {}  # module_name -> module_descriptor (all)
@@ -76,13 +76,39 @@ class ModuleManager:  # pylint: disable=R0902
         #
         self.load_order = []
         #
-        self.pylon_requirements_hash = hashlib.sha256(self.context.pylon_requirements.encode()).hexdigest()
-        self.previous_requirements_hash = config.tunable_get("pylon_requirements_hash", b"").decode()
+        self.pylon_requirements_hash = hashlib.sha256(
+            self.context.pylon_requirements.encode()
+        ).hexdigest()
+        self.previous_requirements_hash = config.tunable_get(
+            "pylon_requirements_hash", b""
+        ).decode()
         #
-        self.pylon_requirements_changed = self.pylon_requirements_hash != self.previous_requirements_hash
+        self.pylon_requirements_changed = \
+            self.pylon_requirements_hash != self.previous_requirements_hash
         if self.pylon_requirements_changed:
-            log.info("Pylon requirements changed: %s -> %s", self.previous_requirements_hash, self.pylon_requirements_hash)
+            log.info(
+                "Pylon requirements changed: %s -> %s",
+                self.previous_requirements_hash, self.pylon_requirements_hash,
+            )
             config.tunable_set("pylon_requirements_hash", self.pylon_requirements_hash.encode())
+
+    def resolve_settings(self, key, default=None):
+        """ Get settings value with overrides """
+        if key in self.setting_overrides:
+            return self.setting_overrides[key]
+        #
+        key_path = key.split(".")
+        current_settings = self.settings
+        #
+        while key_path:
+            current_key = key_path.pop(0)
+            #
+            if not key_path:  # last key
+                return current_settings.get(current_key, default)
+            #
+            current_settings = current_settings.get(current_key, {})
+        #
+        return default
 
     def init_modules(self):
         """ Load and init modules """
@@ -689,11 +715,11 @@ class ModuleManager:  # pylint: disable=R0902
             c_args.append("--trusted-host")
             c_args.append(trusted_host)
         #
-        index_url = self.settings["requirements"].get("index_url", None)
-        extra_index_url = self.settings["requirements"].get("extra_index_url", None)
-        no_index = self.settings["requirements"].get("no_index", False)
-        find_links = self.settings["requirements"].get("find_links", None)
-        require_hashes = self.settings["requirements"].get("require_hashes", False)
+        index_url = self.resolve_settings("requirements.index_url", None)
+        extra_index_url = self.resolve_settings("requirements.extra_index_url", None)
+        no_index = self.resolve_settings("requirements.no_index", False)
+        find_links = self.resolve_settings("requirements.find_links", None)
+        require_hashes = self.resolve_settings("requirements.require_hashes", False)
         #
         if index_url is not None:
             c_args.append("--index-url")
