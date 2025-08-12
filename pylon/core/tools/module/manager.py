@@ -710,7 +710,7 @@ class ModuleManager:  # pylint: disable=R0902
             c_args.append("--cert")
             c_args.append(ssl.custom_ca_bundle)
         #
-        trusted_hosts = self.settings["requirements"].get("trusted_hosts", [])
+        trusted_hosts = self.resolve_settings("requirements.trusted_hosts", [])
         for trusted_host in trusted_hosts:
             c_args.append("--trusted-host")
             c_args.append(trusted_host)
