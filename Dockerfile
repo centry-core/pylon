@@ -23,7 +23,7 @@ RUN set -x \
       xfonts-scalable fonts-liberation \
       fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf fonts-freefont-ttf \
       dos2unix \
-      poppler-data poppler-utils libpoppler-cpp0v5 libpoppler-glib8 \
+      poppler-data poppler-utils libpoppler-cpp2 libpoppler-glib8t64 \
       tesseract-ocr-all \
       ripgrep fzf \
   && apt-get clean \
