@@ -702,6 +702,11 @@ class ModuleManager:  # pylint: disable=R0902
             environ["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
         #
         c_args = []
+        #
+        additional_args = self.resolve_settings("requirements.additional_args", [])
+        for a_arg in additional_args:
+            c_args.append(a_arg)
+        #
         for const in constraint_paths:
             c_args.append("-c")
             c_args.append(const)
