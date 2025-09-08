@@ -678,7 +678,7 @@ class ModuleManager:  # pylint: disable=R0902
         result = module_overrides["value_to"].encode()
         return result
 
-    def install_requirements(
+    def install_requirements(  # pylint: disable=R
             self, requirements_path, target_site_base,
             additional_site_paths=None, constraint_paths=None,
             *,
@@ -700,6 +700,14 @@ class ModuleManager:  # pylint: disable=R0902
         #
         if additional_site_paths is not None:
             environ["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
+        #
+        target_args = []
+        #
+        if self.resolve_settings("requirements.install_via_prefix", False):
+            target_args.append("--prefix")
+            target_args.append(target_site_base)
+        else:
+            target_args.append("--user")
         #
         c_args = []
         #
@@ -750,7 +758,8 @@ class ModuleManager:  # pylint: disable=R0902
                     [
                         sys.executable,
                         "-m", "pip", "install",
-                        "--user", "--no-warn-script-location",
+                    ] + target_args + [
+                        "--no-warn-script-location",
                         "--disable-pip-version-check",
                         "--root-user-action=ignore",
                         "--cache-dir", cache_dir,
@@ -785,6 +794,13 @@ class ModuleManager:  # pylint: disable=R0902
         if additional_site_paths is not None:
             environ["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
         #
+        target_args = []
+        if self.resolve_settings("requirements.install_via_prefix", False):
+            target_args.append("--path")
+            target_args.append(self.get_user_site_path(target_site_base))
+        else:
+            target_args.append("--user")
+        #
         opt_args = []
         if requirements_path is not None:
             opt_args.append("-r")
@@ -794,7 +810,7 @@ class ModuleManager:  # pylint: disable=R0902
             [
                 sys.executable,
                 "-m", "pip", "freeze",
-                "--user",
+            ] + target_args + [
                 "--disable-pip-version-check",
                 "--cache-dir", cache_dir,
             ] + opt_args,
