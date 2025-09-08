@@ -637,10 +637,12 @@ class ModuleManager:  # pylint: disable=R0902
         new_env = os.environ.copy()
         new_env["PYTHONUSERBASE"] = base
         #
-        return subprocess.check_output(
+        return subprocess.run(
             [sys.executable, "-m", "site", "--user-site"],
             env=new_env,
-        ).decode().strip()
+            check=False,
+            stdout=subprocess.PIPE,
+        ).stdout.decode().strip()
 
     def _apply_requirements_overrides(self, module_name, requirements):
         """ Apply requirements overrides for backward compatibility """
