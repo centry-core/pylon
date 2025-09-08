@@ -20,6 +20,7 @@
 
 import os
 import sys
+import site
 import json
 import time
 import types
@@ -634,17 +635,7 @@ class ModuleManager:  # pylint: disable=R0902
     @staticmethod
     def get_user_site_path(base):
         """ Get site path for specific site base """
-        new_env = os.environ.copy()
-        new_env["PYTHONUSERBASE"] = base
-        #
-        return os.path.abspath(
-            subprocess.run(
-                [sys.executable, "-m", "site", "--user-site"],
-                env=new_env,
-                check=False,
-                stdout=subprocess.PIPE,
-            ).stdout.decode().strip()
-        )
+        return site.getsitepackages([base])[0]
 
     def _apply_requirements_overrides(self, module_name, requirements):
         """ Apply requirements overrides for backward compatibility """
