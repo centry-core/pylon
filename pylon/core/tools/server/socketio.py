@@ -404,6 +404,7 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
             except:  # pylint: disable=W0702
                 log.exception("Failed to emit SIO event")
 
+
 class SIOAsyncEventHandler:  # pylint: disable=R0903
     """ Pylon SocketIO Async Event handler """
 
