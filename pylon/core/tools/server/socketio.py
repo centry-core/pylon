@@ -298,16 +298,23 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
     """ SockerIO Server patched for Pylon """
 
     def __init__(self, *args, **kwargs):
-        self.pylon_emit_lock = threading.Lock()
+        self.pylon_emit_queue = SimpleQueue()
+        self.pylon_emitting_thread = threading.Thread(
+            target=self.pylon_emitting_worker,
+            daemon=True,
+        )
+        #
         self.pylon_any_handlers = []
         self.pylon_event_handlers = {}
+        #
+        self.pylon_emitting_thread.start()
         #
         super().__init__(*args, **kwargs)
 
     def emit(self, *args, **kwargs):
         """ Lock and emit() """
-        with self.pylon_emit_lock:
-            return super().emit(*args, **kwargs)
+        emit_data = (args, kwargs)
+        self.pylon_emit_queue.put(emit_data)
 
     def on(self, event, handler=None, namespace=None):  # pylint: disable=C0103
         """ Register an event handler """
@@ -388,6 +395,14 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
         #
         self.pylon_any_handlers.remove(handler)
 
+    def pylon_emitting_worker(self):
+        """ Perform emits """
+        while True:
+            try:
+                args, kwargs = self.pylon_emit_queue.get()
+                super().emit(*args, **kwargs)
+            except:  # pylint: disable=W0702
+                log.exception("Failed to emit SIO event")
 
 class SIOAsyncEventHandler:  # pylint: disable=R0903
     """ Pylon SocketIO Async Event handler """
@@ -495,7 +510,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
     def __init__(self, context):
         self.context = context
         #
-        self._emit_lock = threading.Lock()
+        # self._emit_lock = threading.Lock()
         self._any_async_handlers = {}  # handler -> async version
         #
         import asgiref.sync  # pylint: disable=E0401,C0412,C0415
@@ -545,12 +560,14 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     async def _async_emit(self, *args, **kwargs):
         """ Proxy method """
+        # FIXME: emit() is not thread-safe and can be re-entered
         return await self.context.sio_async.emit(*args, **kwargs)
 
     def _sync_emit(self, *args, **kwargs):
         """ Proxy method """
-        with self._emit_lock:
-            return self.__sync_emit(*args, **kwargs)
+        # FIXME: emit() can be re-entered
+        # with self._emit_lock:
+        return self.__sync_emit(*args, **kwargs)
 
     def enter_room(self, *args, **kwargs):
         """ Proxy method """
