@@ -62,6 +62,11 @@ amqp==5.3.1
 pamqp==3.3.0
 kombu==5.4.2
 
+# Auth
+redis-entraid==1.0.0
+azure-identity==1.20.0
+azure-keyvault-secrets==4.10.0
+
 # Git
 dulwich==0.22.7
 paramiko==3.5.0

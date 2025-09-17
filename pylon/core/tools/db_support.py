@@ -232,6 +232,17 @@ def make_engine(
         db_engine_url, **db_engine_kwargs,
     )
     #
+    # Managed identity
+    if target_db.config.get("engine_use_managed_identity", False):
+        from sqlalchemy import event  # pylint: disable=E0401,C0415
+        from azure.identity import DefaultAzureCredential  # pylint: disable=E0401,C0415
+        #
+        @event.listens_for(engine, "do_connect")
+        def _get_managed_token(dialect, conn_rec, cargs, cparams):  # pylint: disable=W0613
+            credential = DefaultAzureCredential()
+            token = credential.get_token("https://ossrdbms-aad.database.windows.net/.default").token
+            cparams["password"] = token
+    #
     failed_connections = 0
     #
     while True:
@@ -457,7 +468,9 @@ class DbSchemaHelper:  # pylint: disable=R0903
     def __getattr__(self, name):
         with self.__lock:
             if name not in self.__schemas:
-                self.__schemas[name] = make_sqlalchemy_entities(self.__context, schema=name, add_schema_helper=False)
+                self.__schemas[name] = make_sqlalchemy_entities(
+                    self.__context, schema=name, add_schema_helper=False
+                )
             #
             self.__entities.schema_used.add(name)
             #
