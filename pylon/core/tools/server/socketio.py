@@ -298,7 +298,7 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
     """ SockerIO Server patched for Pylon """
 
     def __init__(self, *args, **kwargs):
-        self.pylon_emit_lock = threading.Lock()
+        # self.pylon_emit_lock = threading.Lock()
         self.pylon_any_handlers = []
         self.pylon_event_handlers = {}
         #
@@ -306,8 +306,8 @@ class SIOPatchedServer(socketio.Server):  # pylint: disable=R0903
 
     def emit(self, *args, **kwargs):
         """ Lock and emit() """
-        with self.pylon_emit_lock:
-            return super().emit(*args, **kwargs)
+        # with self.pylon_emit_lock:
+        return super().emit(*args, **kwargs)
 
     def on(self, event, handler=None, namespace=None):  # pylint: disable=C0103
         """ Register an event handler """
@@ -495,7 +495,7 @@ class SIOAsyncProxy:  # pylint: disable=R0903
     def __init__(self, context):
         self.context = context
         #
-        self._emit_lock = threading.Lock()
+        # self._emit_lock = threading.Lock()
         self._any_async_handlers = {}  # handler -> async version
         #
         import asgiref.sync  # pylint: disable=E0401,C0412,C0415
@@ -549,8 +549,8 @@ class SIOAsyncProxy:  # pylint: disable=R0903
 
     def _sync_emit(self, *args, **kwargs):
         """ Proxy method """
-        with self._emit_lock:
-            return self.__sync_emit(*args, **kwargs)
+        # with self._emit_lock:
+        return self.__sync_emit(*args, **kwargs)
 
     def enter_room(self, *args, **kwargs):
         """ Proxy method """
