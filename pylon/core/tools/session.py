@@ -57,14 +57,29 @@ def make_session_interface(context):
         from redis import StrictRedis  # pylint: disable=E0401,C0415
         from flask_session.redis import RedisSessionInterface  # pylint: disable=E0401,C0415
         #
-        client = StrictRedis(
-            host=redis_config.get("host", "localhost"),
-            port=redis_config.get("port", 6379),
-            password=redis_config.get("password", None),
-            ssl=redis_config.get("use_ssl", False),
-            socket_timeout=redis_config.get("socket_timeout", 60),
-            socket_connect_timeout=redis_config.get("socket_connect_timeout", 30),
-        )
+        redis_params = {
+            "host": redis_config.get("host", "localhost"),
+            "port": redis_config.get("port", 6379),
+            #
+            "ssl": redis_config.get("use_ssl", False),
+            #
+            "socket_keepalive": redis_config.get("socket_keepalive", True),
+            "socket_timeout": redis_config.get("socket_timeout", 60),
+            "socket_connect_timeout": redis_config.get("socket_connect_timeout", 30),
+        }
+        #
+        if redis_config.get("use_managed_identity", False):
+            from redis_entraid.cred_provider import create_from_default_azure_credential  # pylint: disable=C0415,E0401,W0401
+            #
+            credential_provider = create_from_default_azure_credential(  # pylint: disable=E0602
+                ("https://redis.azure.com/.default",),
+            )
+            #
+            redis_params["credential_provider"] = credential_provider
+        else:
+            redis_params["password"] = redis_config.get("password", None)
+        #
+        client = StrictRedis(**redis_params)
         #
         target.cls = RedisSessionInterface
         target.kwargs = {

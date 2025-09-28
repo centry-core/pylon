@@ -511,7 +511,6 @@ class SIOAsyncProxy:  # pylint: disable=R0903
     def __init__(self, context):
         self.context = context
         #
-        # self._emit_lock = threading.Lock()
         self._any_async_handlers = {}  # handler -> async version
         #
         import asgiref.sync  # pylint: disable=E0401,C0412,C0415
@@ -567,7 +566,6 @@ class SIOAsyncProxy:  # pylint: disable=R0903
     def _sync_emit(self, *args, **kwargs):
         """ Proxy method """
         # FIXME: emit() can be re-entered
-        # with self._emit_lock:
         return self.__sync_emit(*args, **kwargs)
 
     def enter_room(self, *args, **kwargs):
