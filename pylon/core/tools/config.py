@@ -45,6 +45,12 @@ def config_substitution(obj, secrets):
             obj_value = secrets.get(obj_key, None)
             if obj_value is not None:
                 return obj_value
+        if match := re.match(r"^\$\:(?P<tunable>\S+?)(\:(?P<default>\S*))?$", obj.strip()):
+            obj_tunable = match.group("tunable")
+            obj_default = match.group("default")
+            obj_value = tunable_get(obj_tunable, obj_default)
+            if obj_value is not None:
+                return obj_value
     return obj
 
 
@@ -103,6 +109,29 @@ def vault_secrets(settings):
     except:  # pylint: disable=W0702
         logging.exception("Failed to read Vault secrets")
         result = {}
+    #
+    return result
+
+
+def tunable_list(include_values=False):
+    """ Tunables: enumerate """
+    from tools import context  # pylint: disable=C0415,E0401
+    from pylon.framework.db.models.tunable_value import TunableValue  # pylint: disable=C0415
+    #
+    result = []
+    #
+    with context.pylon_db.make_session() as db_session:
+        tunable_objs = db_session.query(TunableValue).all()
+    #
+    for tunable_obj in tunable_objs:
+        item = {
+            "tunable": tunable_obj.tunable,
+        }
+        #
+        if include_values:
+            item["value"] = tunable_obj.value
+        #
+        result.append(item)
     #
     return result
 
