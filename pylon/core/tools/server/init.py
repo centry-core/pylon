@@ -56,7 +56,7 @@ def run_server(context):
         log.info("Blocking until stop_event is set")
         #
         context.stop_event.wait()
-    else:  # oneshot
+    else:  # oneshot / preload / etc
         return
 
 

@@ -171,12 +171,14 @@ class ModuleManager:  # pylint: disable=R0902
         )
         # Install/get requirements
         self._prepare_modules(target_module_descriptors, preloaded_items)
-        # Activate and init modules
-        log.info("Activating modules")
-        self._activate_modules(target_module_descriptors)
-        # Run ready callbacks
-        log.info("Running ready callbacks")
-        self._run_ready_callbacks()
+        #
+        if self.context.server_mode != "preload":
+            # Activate and init modules
+            log.info("Activating modules")
+            self._activate_modules(target_module_descriptors)
+            # Run ready callbacks
+            log.info("Running ready callbacks")
+            self._run_ready_callbacks()
 
     def _run_ready_callbacks(self):
         for module_name in list(self.modules):
