@@ -94,8 +94,8 @@ six==1.17.0
 aniso8601==10.0.0
 
 # SIO
-python-engineio[client]==4.11.2
-python-socketio[client]==5.12.1
+python-engineio[client]==4.12.3
+python-socketio[client]==5.14.1
 simple-websocket==1.1.0
 #
 websocket-client==1.8.0
