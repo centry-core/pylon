@@ -21,7 +21,7 @@ pycparser==2.22
 minio==7.2.15
 #
 argon2-cffi==23.1.0
-typing-extensions==4.12.2
+typing-extensions==4.15.0
 pycryptodome==3.21.0
 argon2-cffi-bindings==21.2.0
 
