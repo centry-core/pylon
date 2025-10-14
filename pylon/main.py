@@ -40,6 +40,11 @@ if CORE_WEB_RUNTIME == "gevent":
     hub_not_errors = list(gevent.hub.Hub.NOT_ERROR)
     hub_not_errors.append(ssl.SSLError)
     gevent.hub.Hub.NOT_ERROR = tuple(hub_not_errors)
+    #
+    import asyncio
+    import asyncio_gevent  # pylint: disable=E0401
+    #
+    asyncio.set_event_loop_policy(asyncio_gevent.EventLoopPolicy())
 
 #
 # Disable some of the warnings early
