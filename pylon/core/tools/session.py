@@ -61,12 +61,17 @@ def make_session_interface(context):
             "host": redis_config.get("host", "localhost"),
             "port": redis_config.get("port", 6379),
             #
-            "ssl": redis_config.get("use_ssl", False),
-            #
             "socket_keepalive": redis_config.get("socket_keepalive", True),
             "socket_timeout": redis_config.get("socket_timeout", 60),
             "socket_connect_timeout": redis_config.get("socket_connect_timeout", 30),
         }
+        #
+        if redis_config.get("use_ssl", False):
+            ssl_verify = redis_config.get("ssl_verify", False)
+            #
+            redis_params["ssl"] = True
+            redis_params["ssl_cert_reqs"] = "required" if ssl_verify else "none"
+            redis_params["ssl_check_hostname"] = ssl_verify
         #
         if redis_config.get("use_managed_identity", False):
             from redis_entraid.cred_provider import create_from_default_azure_credential  # pylint: disable=C0415,E0401,W0401
