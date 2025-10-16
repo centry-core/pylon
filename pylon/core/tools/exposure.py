@@ -72,10 +72,10 @@ def expose(context):
     zmq_config = config.get("zmq", {})
     #
     if zmq_config.get("enabled", False):
-        context.exposure.zmq_server = arbiter.ZeroMQServerNode(
-            bind_pub=zmq_config.get("bind_pub", "tcp://*:5010"),
-            bind_pull=zmq_config.get("bind_pull", "tcp://*:5011"),
-        )
+        node_config = zmq_config.copy()
+        node_config.pop("enabled")
+        #
+        context.exposure.zmq_server = arbiter.ZeroMQServerNode(**node_config)
         context.exposure.zmq_server.start()
     #
     # EventNode
