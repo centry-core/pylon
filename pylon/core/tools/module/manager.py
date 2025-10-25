@@ -449,7 +449,9 @@ class ModuleManager:  # pylint: disable=R0902
                     self.activate_path(module_descriptor.requirements_path)
                     self.activated_paths.append(module_descriptor.requirements_path)
                     self.activated_bases.append(module_descriptor.requirements_base)
-
+        #
+        if self.context.pylon_version == "unknown":
+            log.warning("Failed to resolve installed pylon version, skipping version checks")
         #
         for module_descriptor in module_descriptors:
             if not module_descriptor.prepared:
@@ -468,7 +470,7 @@ class ModuleManager:  # pylint: disable=R0902
             #
             version_requirements = module_descriptor.metadata.get("version_requirements", {})
             #
-            if "pylon" in version_requirements:
+            if "pylon" in version_requirements and self.context.pylon_version != "unknown":
                 pylon_requirement = packaging.requirements.Requirement(
                     f'pylon {version_requirements["pylon"]}'
                 )
