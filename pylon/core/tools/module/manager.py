@@ -705,6 +705,7 @@ class ModuleManager:  # pylint: disable=R0902
         if self.resolve_settings("requirements.install_via_prefix", False):
             target_args.append("--prefix")
             target_args.append(target_site_base)
+            # --ignore-installed ?
         else:
             target_args.append("--user")
         #
