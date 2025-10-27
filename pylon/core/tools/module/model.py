@@ -44,6 +44,9 @@ class ModuleModel:
         """ Re-config module """
         self.descriptor.load_config()
 
+    def preload(self):
+        """ Preload handler """
+
     def install(self):
         """ Install handler """
         self.descriptor.install_all()

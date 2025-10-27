@@ -171,11 +171,11 @@ class ModuleManager:  # pylint: disable=R0902
         )
         # Install/get requirements
         self._prepare_modules(target_module_descriptors, preloaded_items)
+        # Activate and init/prealod modules
+        log.info("Activating modules")
+        self._activate_modules(target_module_descriptors)
         #
         if self.context.server_mode != "preload":
-            # Activate and init modules
-            log.info("Activating modules")
-            self._activate_modules(target_module_descriptors)
             # Run ready callbacks
             log.info("Running ready callbacks")
             self._run_ready_callbacks()
@@ -530,15 +530,18 @@ class ModuleManager:  # pylint: disable=R0902
                 )
                 module_descriptor.module = module_obj
                 #
-                with db_support.local_session():
-                    module_obj.init()
-                #
-                if not module_descriptor.state.get("installed", False):
+                if self.context.server_mode == "preload":
+                    module_obj.preload()
+                else:
                     with db_support.local_session():
-                        module_obj.install()
+                        module_obj.init()
                     #
-                    module_descriptor.state["installed"] = True
-                    module_descriptor.save_state()
+                    if not module_descriptor.state.get("installed", False):
+                        with db_support.local_session():
+                            module_obj.install()
+                        #
+                        module_descriptor.state["installed"] = True
+                        module_descriptor.save_state()
             except:  # pylint: disable=W0702
                 log.exception("Failed to enable module: %s", module_descriptor.name)
                 continue
