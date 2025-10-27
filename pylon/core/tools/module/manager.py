@@ -707,12 +707,14 @@ class ModuleManager:  # pylint: disable=R0902
         if additional_site_paths is not None:
             environ["PYTHONPATH"] = os.pathsep.join(additional_site_paths)
         #
+        target_module = "pip"
         target_args = []
         #
         if self.resolve_settings("requirements.install_via_prefix", False):
             target_args.append("--prefix")
             target_args.append(target_site_base)
-            # --ignore-installed ?
+            #
+            target_module = "pylon.pip"
         else:
             target_args.append("--user")
         #
@@ -764,7 +766,7 @@ class ModuleManager:  # pylint: disable=R0902
                 return process.run_command(
                     [
                         sys.executable,
-                        "-m", "pip", "install",
+                        "-m", target_module, "install",
                     ] + target_args + [
                         "--no-warn-script-location",
                         "--disable-pip-version-check",
