@@ -32,6 +32,8 @@ alembic==1.14.1
 psycopg2==2.9.10; platform_system == "Linux"
 psycopg2-binary==2.9.10; platform_system != "Linux"
 #
+duckdb-engine==0.17.0
+#
 greenlet==3.1.1
 Mako==1.3.8
 
