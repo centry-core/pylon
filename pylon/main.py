@@ -40,11 +40,6 @@ if CORE_WEB_RUNTIME == "gevent":
     hub_not_errors = list(gevent.hub.Hub.NOT_ERROR)
     hub_not_errors.append(ssl.SSLError)
     gevent.hub.Hub.NOT_ERROR = tuple(hub_not_errors)
-    #
-    import asyncio
-    import asyncio_gevent  # pylint: disable=E0401
-    #
-    asyncio.set_event_loop_policy(asyncio_gevent.EventLoopPolicy())
 
 #
 # Disable some of the warnings early
@@ -250,6 +245,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Init app hierarchy
     context.app_manager.init_hierarchy()
     #
+    # Phase: mesh
+    #
+
+    #
     # Phase: router
     #
     # Init framework router
@@ -297,6 +296,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         context.module_manager.deinit_modules()
         # Print profile stats: deinit
         profiling.profiling_stop(context, "deinit")
+        # Leave mesh
+
         # De-initialize DB support
         db_support.deinit(context)
     #
