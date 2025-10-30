@@ -65,7 +65,7 @@ kombu==5.5.4
 
 # Auth
 redis-entraid==1.0.0
-azure-identity==1.25.1
+azure-identity~=1.20.0
 azure-keyvault-secrets==4.10.0
 
 # Git
