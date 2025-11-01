@@ -2,13 +2,10 @@ FROM python:3.12-slim
 WORKDIR /data
 
 RUN set -x \
-  && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
-  && update-ca-certificates
-
-RUN set -x \
   && apt-get update \
   && apt-get upgrade --no-install-recommends -y \
   && apt-get install --no-install-recommends -y \
+      curl ca-certificates \
       dumb-init \
       supervisor \
       postgresql-client \
@@ -28,6 +25,10 @@ RUN set -x \
       ripgrep fzf \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
+
+RUN set -x \
+  && curl -q http://zerossl.crt.sectigo.com/ZeroSSLRSADomainSecureSiteCA.crt | openssl x509 > /usr/local/share/ca-certificates/ZeroSSLRSADomainSecureSiteCA.crt \
+  && update-ca-certificates
 
 ARG PIP_ARGS="--no-cache-dir"
 RUN set -x \
