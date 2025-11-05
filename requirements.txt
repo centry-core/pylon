@@ -142,7 +142,7 @@ pyparsing==3.2.5
 
 # Centry
 arbiter @ git+https://github.com/centry-core/arbiter.git@1.2.13
-centry_logging @ git+https://github.com/centry-core/centry_logging.git
+centry_logging @ git+https://github.com/centry-core/centry_logging.git@1.1.2
 #
 pytest==8.4.2
 coverage==7.11.0
