@@ -36,30 +36,21 @@ from pylon.core.tools import log
 from pylon.core.tools.context import Context
 
 
-def expose(context):
-    """ Expose this pylon over pylon network """
+def expose_zmq(context):
+    """ Expose this pylon over pylon network - ZeroMQ """
     if context.before_reloader:
         log.info(
-            "Running in development mode before reloader is started. Skipping exposure"
+            "Running in development mode before reloader is started. Skipping ZeroMQ exposure"
         )
         return
     #
-    log.info("Exposing pylon")
+    log.info("Exposing ZeroMQ")
     #
     context.exposure = Context()
-    context.exposure.id = f"pylon_{context.id}"
     context.exposure.config = context.settings.get("exposure", {})
-    context.exposure.debug = context.exposure.config.get("debug", False)
-    context.exposure.stop_event = threading.Event()
-    context.exposure.event_node = None
-    context.exposure.rpc_node = None
     context.exposure.zmq_ctx = None
     context.exposure.zmq_socket_pub = None
     context.exposure.zmq_socket_pull = None
-    context.exposure.registry = {}
-    context.exposure.threads = Context()
-    #
-    http.server.BaseHTTPRequestHandler.version_string = lambda *args, **kwargs: "Pylon"
     #
     # Config
     #
@@ -77,6 +68,53 @@ def expose(context):
         #
         context.exposure.zmq_server = arbiter.ZeroMQServerNode(**node_config)
         context.exposure.zmq_server.start()
+
+
+def unexpose_zmq(context):
+    """ Unexpose this pylon over pylon network - ZeroMQ """
+    if context.before_reloader:
+        log.info(
+            "Running in development mode before reloader is started. Skipping ZeroMQ unexposure"
+        )
+        return
+    #
+    log.info("Unexposing ZeroMQ")
+    #
+    config = context.exposure.config
+    #
+    # ZMQ?
+    #
+    zmq_config = config.get("zmq", {})
+    #
+    if zmq_config.get("enabled", False):
+        context.exposure.zmq_server.stop()
+
+
+def expose(context):
+    """ Expose this pylon over pylon network """
+    if context.before_reloader:
+        log.info(
+            "Running in development mode before reloader is started. Skipping exposure"
+        )
+        return
+    #
+    log.info("Exposing pylon")
+    #
+    context.exposure.id = f"pylon_{context.id}"
+    context.exposure.debug = context.exposure.config.get("debug", False)
+    context.exposure.stop_event = threading.Event()
+    context.exposure.event_node = None
+    context.exposure.rpc_node = None
+    context.exposure.registry = {}
+    context.exposure.threads = Context()
+    #
+    http.server.BaseHTTPRequestHandler.version_string = lambda *args, **kwargs: "Pylon"
+    #
+    # Config
+    #
+    config = context.exposure.config
+    if not config:
+        return
     #
     # EventNode
     #
@@ -236,13 +274,6 @@ def unexpose(context):
     #
     if have_event_node:
         context.exposure.event_node.stop()
-    #
-    # ZMQ?
-    #
-    zmq_config = config.get("zmq", {})
-    #
-    if zmq_config.get("enabled", False):
-        context.exposure.zmq_server.stop()
 
 
 def on_pylon_exposed(event_name, event_payload):

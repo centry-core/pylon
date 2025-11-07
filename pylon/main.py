@@ -179,6 +179,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     log.info("Setting environment overrides")
     for key, value in context.settings.get("environment", {}).items():
         os.environ[key] = value
+    # Transitional: start ZMQ now
+    exposure.expose_zmq(context)
     # Reinit logging with full config
     log_support.reinit_logging(context)
     # Log pylon ID
@@ -247,7 +249,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: mesh
     #
-
+    # TODO: mesh hub, mesh nodes
     #
     # Phase: router
     #
@@ -297,7 +299,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
         # Print profile stats: deinit
         profiling.profiling_stop(context, "deinit")
         # Leave mesh
-
         # De-initialize DB support
         db_support.deinit(context)
     #
@@ -306,6 +307,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Flush logs here
     log.info("Exiting")
     log.flush()
+    # Transitional: stop ZMQ now
+    exposure.unexpose_zmq(context)
     # Kill remaining processes to avoid keeping the container running on update
     if context.settings.get("system", {}).get("kill_remaining_processes", True) and \
             context.runtime_init in ["pylon", "dumb-init"]:

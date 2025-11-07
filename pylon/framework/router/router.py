@@ -754,6 +754,7 @@ class Router:
         #
         if target_kind == "template":
             kind_kwargs = target.get("kind_kwargs", {})
+            # TODO: resolve template from hierarchy
             target_template = kind_kwargs.get("template", self.default_template)
             target_kwargs = self.default_template_kwargs.copy()
             target_kwargs.update(kind_kwargs.get("template_kwargs", {}))
