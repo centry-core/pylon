@@ -568,11 +568,14 @@ class ModuleManager:  # pylint: disable=R0902
             profiling.profiling_start(self.context, f"module:deinit:{module_name}")
             #
             try:
-                db_support.create_local_session()
-                try:
-                    self.modules[module_name].module.deinit()
-                finally:
-                    db_support.close_local_session()
+                if self.context.server_mode == "preload":
+                    pass
+                else:
+                    db_support.create_local_session()
+                    try:
+                        self.modules[module_name].module.deinit()
+                    finally:
+                        db_support.close_local_session()
             except:  # pylint: disable=W0702
                 log.exception("Failed to de-init module: %s", module_name)
             finally:
