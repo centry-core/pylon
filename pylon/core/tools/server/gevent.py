@@ -22,6 +22,20 @@ from pylon.core import constants
 
 def run_server(context):
     """ Run A/WSGI server """
+    from gevent.greenlet import Greenlet  # pylint: disable=E0401,C0412,C0415
+    from .splash import boot_splash_hook  # pylint: disable=C0415
+    #
+    if boot_splash_hook in context.root_router.hooks:
+        context.root_router.hooks.remove(boot_splash_hook)
+    #
+    try:
+        context.stop_event.wait()
+    finally:
+        Greenlet.spawn(context.http_server.stop, timeout=None).join()
+
+
+def make_server(context):
+    """ Make WSGI server """
     from gevent.pywsgi import WSGIServer  # pylint: disable=E0401,C0412,C0415
     from geventwebsocket.handler import WebSocketHandler  # pylint: disable=E0401,C0412,C0415
     #
@@ -37,7 +51,7 @@ def run_server(context):
     #
     setattr(http_server, "pre_start_hook", _http_server_pre_start_hook)
     #
-    http_server.serve_forever()
+    return http_server
 
 
 def _http_server_pre_start_hook(handler):

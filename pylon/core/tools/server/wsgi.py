@@ -55,8 +55,18 @@ class RouterApp:  # pylint: disable=R0903
         self.map = app_map.copy() if app_map is not None else {}
         self.default = default
         self.update_path = update_path
+        self.hooks = []
 
     def __call__(self, environ, start_response):
+        for hook in list(self.hooks):
+            try:
+                hook_app = hook(self, environ, start_response)
+            except:  # pylint: disable=W0702
+                hook_app = None
+            #
+            if hook_app is not None:
+                return hook_app(environ, start_response)
+        #
         root_path = environ.get("SCRIPT_NAME", "")
         app_path = environ.get("PATH_INFO", "")
         #

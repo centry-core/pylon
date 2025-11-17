@@ -65,15 +65,6 @@ class AppManager:  # pylint: disable=R0903,R0902
     def init_hierarchy(self):
         """ Init A/WSGI app hierarchy """
         log.info("Initializing hierarchy")
-        #
-        if self.context.is_async:
-            from .server.asgi import RouterApp  # pylint: disable=C0415
-        else:
-            from .server.wsgi import RouterApp  # pylint: disable=C0415
-        # Root router
-        self.context.root_router = RouterApp()
-        # Health endpoints
-        self.add_health_endpoints()
         # SocketIO
         self.add_socketio_app()
         # App router
@@ -199,27 +190,6 @@ class AppManager:  # pylint: disable=R0903,R0902
         """ Unregister api creation hook """
         with self.lock:
             self.api_hooks.pop(hook_uuid, None)
-
-    def add_health_endpoints(self):
-        """ Create health endpoints """
-        health_config = self.context.settings.get("server", {}).get("health", {})
-        health_log = health_config.get("log", False)
-        #
-        if health_log and self.context.is_async:
-            log.warning("Health endpoint logs are not supported with %s", self.context.web_runtime)
-        #
-        if self.context.is_async:
-            from .server.asgi import ok_app  # pylint: disable=C0415
-        else:
-            from .server.wsgi import ok_app  # pylint: disable=C0415
-        #
-        for endpoint in ["healthz", "livez", "readyz"]:
-            if health_config.get(endpoint, False):
-                log.info("Adding %s endpoint", endpoint)
-                self.context.root_router.map[f"/{endpoint}/"] = ok_app
-                #
-                if not health_log:
-                    self.context.server_log_filter.filter_strings.append(f"GET /{endpoint}")
 
     def add_socketio_app(self):
         """ Create SIO """

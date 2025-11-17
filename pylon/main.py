@@ -181,6 +181,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         os.environ[key] = value
     # Transitional: start ZMQ now
     exposure.expose_zmq(context)
+    # Transitional: add server-related data, make root router with hook and start (if gevent)
+    server.init_context(context)
     # Reinit logging with full config
     log_support.reinit_logging(context)
     # Log pylon ID
@@ -242,8 +244,6 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Phase: A/WSGI apps
     #
-    # Add server-related data
-    server.init_context(context)
     # Init app hierarchy
     context.app_manager.init_hierarchy()
     #

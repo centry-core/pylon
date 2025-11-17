@@ -43,6 +43,50 @@ def init_context(context):
     logging.getLogger("server").addFilter(context.server_log_filter)
     logging.getLogger("werkzeug").addFilter(context.server_log_filter)
     logging.getLogger("geventwebsocket.handler").addFilter(context.server_log_filter)
+    #
+    # Root router
+    #
+    if context.is_async:
+        from .asgi import RouterApp  # pylint: disable=C0415
+    else:
+        from .wsgi import RouterApp  # pylint: disable=C0415
+    #
+    context.root_router = RouterApp()
+    #
+    # Health endpoints
+    #
+    health_config = context.settings.get("server", {}).get("health", {})
+    health_log = health_config.get("log", False)
+    #
+    if health_log and context.is_async:
+        log.warning("Health endpoint logs are not supported with %s", context.web_runtime)
+    #
+    if context.is_async:
+        from .asgi import ok_app  # pylint: disable=C0415
+    else:
+        from .wsgi import ok_app  # pylint: disable=C0415
+    #
+    for endpoint in ["healthz", "livez", "readyz"]:
+        if health_config.get(endpoint, False):
+            log.info("Adding %s endpoint", endpoint)
+            context.root_router.map[f"/{endpoint}/"] = ok_app
+            #
+            if not health_log:
+                context.server_log_filter.filter_strings.append(f"GET /{endpoint}")
+    #
+    if context.web_runtime == "gevent":
+        early_run_server(context)
+
+
+def early_run_server(context):
+    """ Run server early with health endpoints and 'boot splash' hook """
+    from .gevent import make_server  # pylint: disable=C0415
+    from .splash import boot_splash_hook  # pylint: disable=C0415
+    #
+    context.root_router.hooks.append(boot_splash_hook)
+    #
+    context.http_server = make_server(context)
+    context.http_server.start()
 
 
 def run_server(context):
@@ -77,4 +121,7 @@ def restart():
             ["/bin/bash", "-c", f"bash -c 'sleep 1; kill {pylon_pid}' &"]
         )
     else:
-        os.kill(pylon_pid, signal.SIGTERM)
+        if context.web_runtime == "gevent":
+            context.stop_event.set()
+        else:
+            os.kill(pylon_pid, signal.SIGTERM)
