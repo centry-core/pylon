@@ -84,13 +84,16 @@ class EventManager:
                 self.node = arbiter.RedisEventNode(
                     host=events_redis.get("host"),
                     port=events_redis.get("port", 6379),
-                    password=events_redis.get("password", ""),
+                    password=events_redis.get("password", None),
                     event_queue=events_redis.get("queue", "events"),
                     hmac_key=events_redis.get("hmac_key", None),
                     hmac_digest=events_redis.get("hmac_digest", "sha512"),
                     callback_workers=events_redis.get("callback_workers", 1),
                     mute_first_failed_connections=events_redis.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                     use_ssl=events_redis.get("use_ssl", False),
+                    ssl_verify=events_redis.get("ssl_verify", False),
+                    use_managed_identity=events_redis.get("use_managed_identity", False),
+                    username=events_redis.get("username", None),
                 )
                 self.node.start()
             except:  # pylint: disable=W0702

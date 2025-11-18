@@ -81,13 +81,16 @@ class RpcManager:
                 event_node = arbiter.RedisEventNode(
                     host=rpc_redis.get("host"),
                     port=rpc_redis.get("port", 6379),
-                    password=rpc_redis.get("password", ""),
+                    password=rpc_redis.get("password", None),
                     event_queue=rpc_redis.get("queue", "events"),
                     hmac_key=rpc_redis.get("hmac_key", None),
                     hmac_digest=rpc_redis.get("hmac_digest", "sha512"),
                     callback_workers=rpc_redis.get("callback_workers", 1),
                     mute_first_failed_connections=rpc_redis.get("mute_first_failed_connections", 10),  # pylint: disable=C0301
                     use_ssl=rpc_redis.get("use_ssl", False),
+                    ssl_verify=rpc_redis.get("ssl_verify", False),
+                    use_managed_identity=rpc_redis.get("use_managed_identity", False),
+                    username=rpc_redis.get("username", None),
                 )
             except:  # pylint: disable=W0702
                 log.exception("Cannot make EventNode instance, using local RPC only")

@@ -59,12 +59,41 @@ def register(context):
     #
     log.info("Registering traefik route for node '%s'", node_name)
     #
-    store = StrictRedis(
-        host=redis_config.get("host", "localhost"),
-        port=redis_config.get("port", 6379),
-        password=redis_config.get("password", None),
-        ssl=redis_config.get("use_ssl", False),
-    )
+    redis_params = {
+        "host": redis_config.get("host", "localhost"),
+        "port": redis_config.get("port", 6379),
+        #
+        "socket_keepalive": redis_config.get("socket_keepalive", True),
+        "socket_timeout": redis_config.get("socket_timeout", 60),
+        "socket_connect_timeout": redis_config.get("socket_connect_timeout", 30),
+    }
+    #
+    if redis_config.get("use_ssl", False):
+        ssl_verify = redis_config.get("ssl_verify", False)
+        #
+        redis_params["ssl"] = True
+        redis_params["ssl_cert_reqs"] = "required" if ssl_verify else "none"
+        redis_params["ssl_check_hostname"] = ssl_verify
+    #
+    if redis_config.get("use_managed_identity", False):
+        from redis_entraid.cred_provider import create_from_default_azure_credential  # pylint: disable=C0415,E0401,W0401
+        #
+        credential_provider = create_from_default_azure_credential(  # pylint: disable=E0602
+            ("https://redis.azure.com/.default",),
+        )
+        #
+        redis_params["credential_provider"] = credential_provider
+    else:
+        redis_password = redis_config.get("password", None)
+        redis_username = redis_config.get("username", None)
+        #
+        if redis_password is not None:
+            redis_params["password"] = redis_password
+        #
+        if redis_username is not None:
+            redis_params["username"] = redis_username
+    #
+    store = StrictRedis(**redis_params)
     #
     traefik_rootkey = traefik_config.get("rootkey", "traefik")
     traefik_rule = traefik_config.get(
@@ -139,12 +168,41 @@ def unregister(context):
     #
     log.info("Unregistering traefik route for node '%s'", context.node_name)
     #
-    store = StrictRedis(
-        host=redis_config.get("host", "localhost"),
-        port=redis_config.get("port", 6379),
-        password=redis_config.get("password", None),
-        ssl=redis_config.get("use_ssl", False),
-    )
+    redis_params = {
+        "host": redis_config.get("host", "localhost"),
+        "port": redis_config.get("port", 6379),
+        #
+        "socket_keepalive": redis_config.get("socket_keepalive", True),
+        "socket_timeout": redis_config.get("socket_timeout", 60),
+        "socket_connect_timeout": redis_config.get("socket_connect_timeout", 30),
+    }
+    #
+    if redis_config.get("use_ssl", False):
+        ssl_verify = redis_config.get("ssl_verify", False)
+        #
+        redis_params["ssl"] = True
+        redis_params["ssl_cert_reqs"] = "required" if ssl_verify else "none"
+        redis_params["ssl_check_hostname"] = ssl_verify
+    #
+    if redis_config.get("use_managed_identity", False):
+        from redis_entraid.cred_provider import create_from_default_azure_credential  # pylint: disable=C0415,E0401,W0401
+        #
+        credential_provider = create_from_default_azure_credential(  # pylint: disable=E0602
+            ("https://redis.azure.com/.default",),
+        )
+        #
+        redis_params["credential_provider"] = credential_provider
+    else:
+        redis_password = redis_config.get("password", None)
+        redis_username = redis_config.get("username", None)
+        #
+        if redis_password is not None:
+            redis_params["password"] = redis_password
+        #
+        if redis_username is not None:
+            redis_params["username"] = redis_username
+    #
+    store = StrictRedis(**redis_params)
     #
     while context.traefik_redis_keys:
         key = context.traefik_redis_keys.pop()

@@ -141,12 +141,22 @@ def create_client_manager(context):  # pylint: disable=R0912,R0914,R0915
             database = socketio_redis.get("database", 0)
             queue = socketio_redis.get("queue", "socketio")
             use_ssl = socketio_redis.get("use_ssl", False)
+            username = socketio_redis.get("username", "")
             #
             if password is None:
                 password = ""
             #
+            if username is None:
+                username = ""
+            #
+            username_password = ""
+            #
+            if password or username:
+                username_password = ":".join([username, password])
+                username_password = f"{username_password}@"
+            #
             scheme = "rediss" if use_ssl else "redis"
-            url = f'{scheme}://:{password}@{host}:{port}/{database}'
+            url = f'{scheme}://{username_password}{host}:{port}/{database}'
             #
             if context.is_async:
                 client_manager = socketio.AsyncRedisManager(
@@ -156,6 +166,7 @@ def create_client_manager(context):  # pylint: disable=R0912,R0914,R0915
                 client_manager = socketio.RedisManager(
                     url=url, channel=queue,
                 )
+            # NOTE: no managed identity support
         except:  # pylint: disable=W0702
             log.exception("Cannot make RedisManager instance, SocketIO is in standalone mode")
     #
