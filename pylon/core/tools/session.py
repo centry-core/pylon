@@ -83,6 +83,7 @@ def make_session_interface(context):
             redis_params["credential_provider"] = credential_provider
         else:
             redis_params["password"] = redis_config.get("password", None)
+            # TODO: username
         #
         client = StrictRedis(**redis_params)
         #
