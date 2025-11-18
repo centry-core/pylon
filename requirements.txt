@@ -141,7 +141,7 @@ watchdog==6.0.0
 pyparsing==3.2.5
 
 # Centry
-arbiter @ git+https://github.com/centry-core/arbiter.git@1.2.14
+arbiter @ git+https://github.com/centry-core/arbiter.git@1.2.15
 centry_logging @ git+https://github.com/centry-core/centry_logging.git@1.1.2
 #
 pytest==8.4.2
