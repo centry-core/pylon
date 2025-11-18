@@ -283,6 +283,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     except:  # pylint: disable=W0702
         log.debug("Stopping on exception:\n%s", traceback.format_exc())
     finally:
+        # TODO: show splash and delay server stop
         log.info("A/WSGI server stopped")
         # Print profile stats: run
         profiling.profiling_stop(context, "run")
