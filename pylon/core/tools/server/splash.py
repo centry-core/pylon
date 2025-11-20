@@ -17,21 +17,28 @@
 
 """ Splash """
 
-import datetime
+import flask  # pylint: disable=E0401
 
 
-def boot_splash_hook(_router, _environ, _start_response):
+def boot_splash_hook(router, environ, _start_response):
     """ Router hook """
+    # Construct request
+    req = flask.Request(environ)
+    # Collect data
+    source_uri = req.full_path
+    if not req.query_string and source_uri.endswith("?"):
+        source_uri = source_uri[:-1]
+    #
+    for endpoint in ["healthz", "livez", "readyz"]:
+        if source_uri.startswith(f"/{endpoint}") and f"/{endpoint}/" in router.map:
+            return None
+    #
     return boot_splash_app
 
 
 def boot_splash_app(_environ, start_response):
     """ Splash app """
-    today = datetime.datetime.now()
-    teapot_day = today.month == 4 and today.day == 1
-    status_line = "503 Service Unavailable" if not teapot_day else "418 I'm a teapot"
-    #
-    start_response(status_line, [
+    start_response("503 Service Unavailable", [
         ("Content-type", "text/html; charset=utf-8"),
         ("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate"),
         ("Expires", "0"),
@@ -63,6 +70,12 @@ def boot_splash_app(_environ, start_response):
         display: flex;
         align-items: center;
         justify-content: center;
+      }
+      #container {
+        border: 1px solid #ccc;
+        border-radius: 16px;
+        padding: 5%;
+        background-color: rgb(9, 12, 23);
       }
     </style>
     <title>Pylon - Booting</title>
