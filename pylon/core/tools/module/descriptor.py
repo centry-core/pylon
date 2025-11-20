@@ -257,19 +257,25 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                     continue
                 #
                 resource_urls = []
+                #
+                if hasattr(resource, "module_name_override"):
+                    base_url = f"{api_version}/{resource.module_name_override}/{resource_name}"
+                else:
+                    base_url = f"{api_version}/{module_name}/{resource_name}"
+                #
                 if hasattr(resource, "url_params"):
                     for url_param in resource.url_params:
                         url_param = url_param.lstrip("/").rstrip("/")
                         #
                         resource_urls.append(
-                            f"/api/{api_version}/{module_name}/{resource_name}/{url_param}"
+                            f"/api/{base_url}/{url_param}"
                         )
                         resource_urls.append(
-                            f"/api/{api_version}/{module_name}/{resource_name}/{url_param}/"
+                            f"/api/{base_url}/{url_param}/"
                         )
                 else:
-                    resource_urls.append(f"/api/{api_version}/{module_name}/{resource_name}")
-                    resource_urls.append(f"/api/{api_version}/{module_name}/{resource_name}/")
+                    resource_urls.append(f"/api/{base_url}")
+                    resource_urls.append(f"/api/{base_url}/")
                 #
                 def _make_add_resource_hook(
                         _resource,
