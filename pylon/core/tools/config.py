@@ -27,6 +27,96 @@ import logging
 import hvac  # pylint: disable=E0401
 
 
+env_var_pattern_str = re.compile(
+    r"""
+    \$(
+        # ${VAR} or ${VAR:default}
+        \{
+            (?P<brace_name>[A-Za-z_][A-Za-z0-9_]*)
+            (?::(?P<default>[^}]*))?
+        \}
+        |
+        # $VAR
+        (?P<simple_name>[A-Za-z_][A-Za-z0-9_]*)
+    )
+    """,
+    re.VERBOSE,
+)
+
+
+env_var_pattern_bytes = re.compile(
+    br"""
+    \$(
+        # ${VAR} or ${VAR:default}
+        \{
+            (?P<brace_name>[A-Za-z_][A-Za-z0-9_]*)
+            (?::(?P<default>[^}]*))?
+        \}
+        |
+        # $VAR
+        (?P<simple_name>[A-Za-z_][A-Za-z0-9_]*)
+    )
+    """,
+    re.VERBOSE,
+)
+
+
+def env_vars_expansion(data, env_vars=None):
+    """ Expand vars in data with optional defaults """
+    #
+    if isinstance(data, bytes):
+        pattern = env_var_pattern_bytes
+        #
+        if env_vars is None:
+            if hasattr(os, "environb"):
+                env_vars = os.environb
+            else:
+                env_vars = {
+                    key.encode(): value.encode()
+                    for key, value in os.environ.items()
+                }
+        #
+        def replace(match):
+            name = match.group("simple_name") or match.group("brace_name")
+            default = match.group("default")
+            value = env_vars.get(name)
+            #
+            if value is None and default is not None:
+                return default
+            #
+            if value is None:
+                return match.group(0)
+            #
+            if isinstance(value, str):
+                return value.encode()
+            #
+            return value
+    #
+    else:
+        pattern = env_var_pattern_str
+        #
+        if env_vars is None:
+            env_vars = os.environ
+        #
+        def replace(match):
+            name = match.group("simple_name") or match.group("brace_name")
+            default = match.group("default")
+            value = env_vars.get(name)
+            #
+            if value is None and default is not None:
+                return default
+            #
+            if value is None:
+                return match.group(0)
+            #
+            if isinstance(value, bytes):
+                return value.decode()
+            #
+            return value
+    #
+    return pattern.sub(replace, data)
+
+
 def config_substitution(obj, secrets):
     """ Allows to use raw environmental variables and secrets inside YAML/JSON config """
     if isinstance(obj, dict):

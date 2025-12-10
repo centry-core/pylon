@@ -25,7 +25,7 @@ import os
 import yaml  # pylint: disable=E0401
 
 from pylon.core.tools import log
-from pylon.core.tools.config import config_substitution, vault_secrets
+from pylon.core.tools.config import env_vars_expansion, config_substitution, vault_secrets
 from pylon.core.tools.minio import MinIOHelper
 
 
@@ -67,7 +67,7 @@ def get_config(settings, name):
     minio = MinIOHelper.get_client(settings["storage"])
     try:
         config_data = minio.get_object(settings["storage"]["buckets"]["config"], f"{name}.yml").read()  # pylint: disable=C0301
-        yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
+        yaml_data = yaml.load(env_vars_expansion(config_data), Loader=yaml.SafeLoader)
         return config_substitution(yaml_data, vault_secrets(settings))
     except:  # pylint: disable=W0702
         log.exception("Failed to get config for %s, assuming none", name)
@@ -80,7 +80,7 @@ def get_development_config(settings, name):
     try:
         with open(os.path.join(config_path, f"{name}.yml"), "rb") as file:
             config_data = file.read()
-        yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
+        yaml_data = yaml.load(env_vars_expansion(config_data), Loader=yaml.SafeLoader)
         return config_substitution(yaml_data, vault_secrets(settings))
     except:  # pylint: disable=W0702
         log.exception("Failed to get config for %s, assuming none", name)

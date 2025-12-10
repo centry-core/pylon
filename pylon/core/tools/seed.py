@@ -64,7 +64,7 @@ def load_settings(return_data_first=False):
 def parse_settings(settings_data):
     """ Parse settings from data """
     try:
-        settings = yaml.load(os.path.expandvars(settings_data), Loader=yaml.SafeLoader)
+        settings = yaml.load(config.env_vars_expansion(settings_data), Loader=yaml.SafeLoader)
         settings = config.config_substitution(settings, config.vault_secrets(settings))
     except:  # pylint: disable=W0702
         log.exception("Failed to parse settings")

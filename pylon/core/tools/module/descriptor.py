@@ -32,7 +32,7 @@ from pylon.core.tools import log
 from pylon.core.tools import web
 from pylon.core.tools import process
 from pylon.core.tools.dict import recursive_merge
-from pylon.core.tools.config import config_substitution, vault_secrets
+from pylon.core.tools.config import env_vars_expansion, config_substitution, vault_secrets
 
 from . import state
 
@@ -106,7 +106,7 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
 
     def _load_yaml_data(self, config_data, config_type):
         try:
-            yaml_data = yaml.load(os.path.expandvars(config_data), Loader=yaml.SafeLoader)
+            yaml_data = yaml.load(env_vars_expansion(config_data), Loader=yaml.SafeLoader)
         except:  # pylint: disable=W0702
             log.exception("Invaid YAML config data for: %s (%s)", self.name, config_type)
             yaml_data = None
