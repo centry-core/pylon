@@ -135,6 +135,7 @@ hyperframe==6.1.0
 attrs==25.4.0
 chardet==5.2.0
 configparser==7.2.0
+setuptools==80.9.0
 toml==0.10.2
 vine==5.1.0
 watchdog==6.0.0
