@@ -57,7 +57,11 @@ def make_server(context):
 def _http_server_pre_start_hook(handler):
     from tools import context  # pylint: disable=E0401,C0415
     #
-    route = context.socketio_route
+    try:
+        route = context.socketio_route
+    except:  # pylint: disable=W0702
+        return True  # pylon has not initialized SocketIO yet
+    #
     route_item = route.rstrip("/")
     #
     app_path = handler.environ.get("PATH_INFO", "")

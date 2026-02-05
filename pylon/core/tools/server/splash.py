@@ -19,36 +19,10 @@
 
 import flask  # pylint: disable=E0401
 
-
-def boot_splash_hook(router, environ, _start_response):
-    """ Router hook """
-    # Construct request
-    req = flask.Request(environ)
-    # Collect data
-    source_uri = req.full_path
-    if not req.query_string and source_uri.endswith("?"):
-        source_uri = source_uri[:-1]
-    #
-    for endpoint in ["healthz", "livez", "readyz"]:
-        if source_uri.startswith(f"/{endpoint}") and f"/{endpoint}/" in router.map:
-            return None
-    #
-    return boot_splash_app
+from pylon.core.tools import config
 
 
-def boot_splash_app(_environ, start_response):
-    """ Splash app """
-    start_response("503 Service Unavailable", [
-        ("Content-type", "text/html; charset=utf-8"),
-        ("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate"),
-        ("Expires", "0"),
-        ("Refresh", "30"),
-        ("Retry-After", "30"),
-    ])
-    #
-    return [
-        # pylint: disable=C0301
-        b"""
+DEFAULT_SPLASH_TEMPLATE = b"""
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -100,5 +74,35 @@ def boot_splash_app(_environ, start_response):
     </script>
   </body>
 </html>
-        """.strip()
-    ]
+"""
+
+
+def boot_splash_hook(router, environ, _start_response):
+    """ Router hook """
+    # Construct request
+    req = flask.Request(environ)
+    # Collect data
+    source_uri = req.full_path
+    if not req.query_string and source_uri.endswith("?"):
+        source_uri = source_uri[:-1]
+    #
+    for endpoint in ["healthz", "livez", "readyz"]:
+        if source_uri.startswith(f"/{endpoint}") and f"/{endpoint}/" in router.map:
+            return None
+    #
+    return boot_splash_app
+
+
+def boot_splash_app(_environ, start_response):
+    """ Splash app """
+    splash_template = config.tunable_get("splash_template", DEFAULT_SPLASH_TEMPLATE)
+    #
+    start_response("503 Service Unavailable", [
+        ("Content-type", "text/html; charset=utf-8"),
+        ("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate, proxy-revalidate"),
+        ("Expires", "0"),
+        ("Refresh", "30"),
+        ("Retry-After", "30"),
+    ])
+    #
+    return [splash_template.strip()]

@@ -203,6 +203,9 @@ def vault_secrets(settings):
     return result
 
 
+tunable_cache = {}
+
+
 def tunable_list(include_values=False):
     """ Tunables: enumerate """
     from tools import context  # pylint: disable=C0415,E0401
@@ -231,6 +234,9 @@ def tunable_exists(tunable):
     from tools import context  # pylint: disable=C0415,E0401
     from pylon.framework.db.models.tunable_value import TunableValue  # pylint: disable=C0415
     #
+    if tunable in tunable_cache and tunable_cache[tunable] is not ...:
+        return True
+    #
     with context.pylon_db.make_session() as db_session:
         tunable_obj = db_session.query(TunableValue).get(tunable)
         #
@@ -245,12 +251,22 @@ def tunable_get(tunable, default=None):
     from tools import context  # pylint: disable=C0415,E0401
     from pylon.framework.db.models.tunable_value import TunableValue  # pylint: disable=C0415
     #
+    if tunable in tunable_cache:
+        data = tunable_cache[tunable]
+        #
+        if data is ...:
+            return default
+        #
+        return data
+    #
     with context.pylon_db.make_session() as db_session:
         tunable_obj = db_session.query(TunableValue).get(tunable)
         #
         if tunable_obj is None:
+            tunable_cache[tunable] = ...
             return default
         #
+        tunable_cache[tunable] = tunable_obj.value
         return tunable_obj.value
 
 
@@ -272,6 +288,7 @@ def tunable_set(tunable, value):
         else:
             tunable_obj.value = value
         #
+        tunable_cache[tunable] = value
         return None
 
 
@@ -286,4 +303,5 @@ def tunable_delete(tunable):
         if tunable_obj is not None:
             db_session.delete(tunable_obj)
         #
+        tunable_cache[tunable] = ...
         return None
