@@ -300,13 +300,23 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
                     __module = _module
                     #
                     def _add_resource(api):
+                        resource_cls = __resource
+                        resource_kwargs = {
+                            "module": __module,
+                        }
+                        if hasattr(self.context, "runtime_dispatcher") and \
+                                self.context.runtime_dispatcher.is_remote_module(__module_name):
+                            resource_cls = self.context.runtime_dispatcher.make_api_resource(
+                                __module_name,
+                                __api_version,
+                                __resource_name,
+                            )
+                            resource_kwargs = {}
                         api.add_resource(
-                            __resource,
+                            resource_cls,
                             *__resource_urls,
                             endpoint=f"api.{__api_version}.{__module_name}.{__resource_name}",
-                            resource_class_kwargs={
-                                "module": __module,
-                            }
+                            resource_class_kwargs=resource_kwargs,
                         )
                     #
                     return _add_resource
@@ -345,7 +355,13 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         for slot in slots:
             name, obj = slot
             #
-            if module_slots:
+            if module_slots and hasattr(self.context, "runtime_dispatcher") and \
+                    self.context.runtime_dispatcher.is_remote_module(self.name):
+                obj = self.context.runtime_dispatcher.make_slot_callback(
+                    self.name,
+                    obj,
+                )
+            elif module_slots:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
                 obj.__module__ = obj.func.__module__
@@ -488,7 +504,13 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         for event in events:
             name, obj = event
             #
-            if module_events:
+            if module_events and hasattr(self.context, "runtime_dispatcher") and \
+                    self.context.runtime_dispatcher.is_remote_module(self.name):
+                obj = self.context.runtime_dispatcher.make_event_listener(
+                    self.name,
+                    obj,
+                )
+            elif module_events:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
                 obj.__module__ = obj.func.__module__

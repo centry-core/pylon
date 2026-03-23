@@ -19,6 +19,7 @@
 """ Runtime dispatch and module import shims """
 
 import flask  # pylint: disable=E0401
+import flask_restful  # pylint: disable=E0401
 
 
 class RuntimeMethodProxy:  # pylint: disable=R0903
@@ -105,6 +106,46 @@ class RuntimeDispatcher:  # pylint: disable=R0903
             "route_kwargs": dict(route_kwargs),
         }
 
+    def make_api_resource(self, module_name, api_version, resource_name):
+        dispatcher = self
+
+        class RuntimeApiProxyResource(flask_restful.Resource):
+            def _dispatch_api(self, **api_kwargs):
+                request_data = dispatcher._capture_request_data()
+                return dispatcher.call_api(
+                    module_name=module_name,
+                    api_version=api_version,
+                    resource_name=resource_name,
+                    method_name=flask.request.method.lower(),
+                    api_kwargs=api_kwargs,
+                    request_data=request_data,
+                )
+
+            def get(self, **api_kwargs):
+                return self._dispatch_api(**api_kwargs)
+
+            def post(self, **api_kwargs):
+                return self._dispatch_api(**api_kwargs)
+
+            def put(self, **api_kwargs):
+                return self._dispatch_api(**api_kwargs)
+
+            def patch(self, **api_kwargs):
+                return self._dispatch_api(**api_kwargs)
+
+            def delete(self, **api_kwargs):
+                return self._dispatch_api(**api_kwargs)
+
+            def options(self, **api_kwargs):
+                return self._dispatch_api(**api_kwargs)
+
+            def head(self, **api_kwargs):
+                return self._dispatch_api(**api_kwargs)
+
+        RuntimeApiProxyResource.__name__ = \
+            f"RuntimeApiProxy_{module_name}_{api_version}_{resource_name}"
+        return RuntimeApiProxyResource
+
     def make_route_view(self, module_name, route_callable, module_routes=True):
         def _route_proxy(**route_kwargs):
             if not self.is_remote_module(module_name):
@@ -147,6 +188,88 @@ class RuntimeDispatcher:  # pylint: disable=R0903
             response_data.get("headers", []),
         )
         return flask.make_response(view_rv)
+
+    def call_api(  # pylint: disable=R0913
+            self,
+            module_name,
+            api_version,
+            resource_name,
+            method_name,
+            api_kwargs,
+            request_data,
+        ):
+        if not hasattr(self.context, "runtime_supervisor"):
+            raise RuntimeError("Runtime supervisor is not initialized")
+        response_data = self.context.runtime_supervisor.call_api(
+            module_name=module_name,
+            api_version=api_version,
+            resource_name=resource_name,
+            method_name=method_name,
+            api_kwargs=api_kwargs,
+            request_data=request_data,
+        )
+        view_rv = (
+            response_data.get("body", b""),
+            response_data.get("status", 500),
+            response_data.get("headers", []),
+        )
+        return flask.make_response(view_rv)
+
+    def make_event_listener(self, module_name, listener_callable):
+        def _event_proxy(context, event_name, event_payload):
+            _ = context
+            if not self.is_remote_module(module_name):
+                module_obj = self.context.module_manager.modules[module_name].module
+                return listener_callable(module_obj, self.context, event_name, event_payload)
+            return self.call_event(
+                module_name=module_name,
+                callable_module=listener_callable.__module__,
+                callable_name=listener_callable.__name__,
+                event_name=event_name,
+                event_payload=event_payload,
+            )
+        _event_proxy.__name__ = listener_callable.__name__
+        _event_proxy.__module__ = listener_callable.__module__
+        return _event_proxy
+
+    def make_slot_callback(self, module_name, callback_callable):
+        def _slot_proxy(context, slot, payload=None):
+            _ = context
+            if not self.is_remote_module(module_name):
+                module_obj = self.context.module_manager.modules[module_name].module
+                return callback_callable(module_obj, self.context, slot, payload)
+            return self.call_slot(
+                module_name=module_name,
+                callable_module=callback_callable.__module__,
+                callable_name=callback_callable.__name__,
+                slot=slot,
+                payload=payload,
+            )
+        _slot_proxy.__name__ = callback_callable.__name__
+        _slot_proxy.__module__ = callback_callable.__module__
+        return _slot_proxy
+
+    def call_event(self, module_name, callable_module, callable_name, event_name, event_payload):
+        if not hasattr(self.context, "runtime_supervisor"):
+            raise RuntimeError("Runtime supervisor is not initialized")
+        return self.context.runtime_supervisor.call_event(
+            module_name=module_name,
+            callable_module=callable_module,
+            callable_name=callable_name,
+            event_name=event_name,
+            event_payload=event_payload,
+        )
+
+    def call_slot(self, module_name, callable_module, callable_name, slot, payload=None):
+        if not hasattr(self.context, "runtime_supervisor"):
+            raise RuntimeError("Runtime supervisor is not initialized")
+        return self.context.runtime_supervisor.call_slot(
+            module_name=module_name,
+            callable_module=callable_module,
+            callable_name=callable_name,
+            slot=slot,
+            payload=payload,
+        )
 
     def call_module_method(self, module_name, method_name, *args, **kwargs):
         if not self.is_remote_module(module_name):

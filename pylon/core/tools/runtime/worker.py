@@ -232,17 +232,109 @@ def run_worker():
                 "body": response.get_data(),
             }
 
+    def _event_call(
+            module=None,
+            callable_module=None,
+            callable_name=None,
+            event_name=None,
+            event_payload=None,
+            source=None,
+        ):
+        _ = source
+        if module not in modules:
+            raise RuntimeError(f"Module is not assigned to this worker: {module}")
+        target_pkg = importlib.import_module(callable_module)
+        target_callable = getattr(target_pkg, callable_name)
+        if module not in module_instances:
+            raise RuntimeError(f"No module instance available in worker: {module}")
+        module_obj = module_instances[module]
+        context_obj = getattr(module_obj, "context", None)
+        return target_callable(module_obj, context_obj, event_name, event_payload)
+
+    def _slot_call(
+            module=None,
+            callable_module=None,
+            callable_name=None,
+            slot=None,
+            payload=None,
+            source=None,
+        ):
+        _ = source
+        if module not in modules:
+            raise RuntimeError(f"Module is not assigned to this worker: {module}")
+        target_pkg = importlib.import_module(callable_module)
+        target_callable = getattr(target_pkg, callable_name)
+        if module not in module_instances:
+            raise RuntimeError(f"No module instance available in worker: {module}")
+        module_obj = module_instances[module]
+        context_obj = getattr(module_obj, "context", None)
+        return target_callable(module_obj, context_obj, slot, payload)
+
+    def _api_call(  # pylint: disable=R0913
+            module=None,
+            api_version=None,
+            resource_name=None,
+            method_name=None,
+            api_kwargs=None,
+            request_data=None,
+            source=None,
+        ):
+        _ = source
+        if module not in modules:
+            raise RuntimeError(f"Module is not assigned to this worker: {module}")
+        if api_kwargs is None:
+            api_kwargs = {}
+        if request_data is None:
+            request_data = {}
+        module_pkg = importlib.import_module(
+            f"plugins.{module}.api.{api_version}.{resource_name}"
+        )
+        resource_cls = getattr(module_pkg, "API")
+        method = request_data.get("method", "GET")
+        path = request_data.get("path", "/")
+        query_string = request_data.get("query_string", b"")
+        headers = request_data.get("headers", {})
+        body = request_data.get("body", b"")
+        content_type = request_data.get("content_type", None)
+        module_obj = module_instances.get(module, None)
+        try:
+            resource_obj = resource_cls(module=module_obj)
+        except TypeError:
+            resource_obj = resource_cls()
+        with route_app.test_request_context(
+                path=path,
+                method=method,
+                query_string=query_string,
+                headers=headers,
+                data=body,
+                content_type=content_type,
+        ):
+            handler = getattr(resource_obj, method_name)
+            view_rv = handler(**api_kwargs)
+            response = flask.make_response(view_rv)
+            return {
+                "status": response.status_code,
+                "headers": list(response.headers.items()),
+                "body": response.get_data(),
+            }
+
     event_node.start()
     rpc_node.start()
     rpc_node.register(_ping, name=f"runtime_worker_{runtime_group}_ping")
     rpc_node.register(_describe, name=f"runtime_worker_{runtime_group}_describe")
     rpc_node.register(_module_call, name=f"runtime_worker_{runtime_group}_module_call")
     rpc_node.register(_route_call, name=f"runtime_worker_{runtime_group}_route_call")
+    rpc_node.register(_event_call, name=f"runtime_worker_{runtime_group}_event_call")
+    rpc_node.register(_slot_call, name=f"runtime_worker_{runtime_group}_slot_call")
+    rpc_node.register(_api_call, name=f"runtime_worker_{runtime_group}_api_call")
 
     try:
         while not stop_event.wait(1.0):
             pass
     finally:
+        rpc_node.unregister(_api_call, name=f"runtime_worker_{runtime_group}_api_call")
+        rpc_node.unregister(_slot_call, name=f"runtime_worker_{runtime_group}_slot_call")
+        rpc_node.unregister(_event_call, name=f"runtime_worker_{runtime_group}_event_call")
         rpc_node.unregister(_route_call, name=f"runtime_worker_{runtime_group}_route_call")
         rpc_node.unregister(_module_call, name=f"runtime_worker_{runtime_group}_module_call")
         rpc_node.unregister(_describe, name=f"runtime_worker_{runtime_group}_describe")

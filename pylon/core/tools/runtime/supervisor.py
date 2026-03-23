@@ -163,6 +163,18 @@ class RuntimeSupervisor:  # pylint: disable=R0902
     def _worker_route_call_name(runtime_group):
         return f"runtime_worker_{runtime_group}_route_call"
 
+    @staticmethod
+    def _worker_event_call_name(runtime_group):
+        return f"runtime_worker_{runtime_group}_event_call"
+
+    @staticmethod
+    def _worker_slot_call_name(runtime_group):
+        return f"runtime_worker_{runtime_group}_slot_call"
+
+    @staticmethod
+    def _worker_api_call_name(runtime_group):
+        return f"runtime_worker_{runtime_group}_api_call"
+
     def _wait_group_ready(self, runtime_group):
         startup_timeout = float(self._runtime_settings().get("startup_timeout_sec", 20.0))
         poll_interval = float(self._runtime_settings().get("startup_poll_interval_sec", 0.5))
@@ -371,6 +383,81 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             module_routes=module_routes,
             request_data=request_data,
             source="runtime-route",
+        )
+
+    def call_event(self, module_name, callable_module, callable_name, event_name, event_payload):
+        """Dispatch event listener call to worker owning module runtime group."""
+        if self.rpc_node is None:
+            raise RuntimeError("Runtime supervisor RPC client is not initialized")
+        if self.runtime_plan is None:
+            raise RuntimeError("Runtime plan is not initialized")
+        runtime_data = self.runtime_plan.get("modules", {}).get(module_name, None)
+        if runtime_data is None:
+            raise RuntimeError(f"Unknown runtime module: {module_name}")
+        runtime_group = runtime_data.get("group", "default")
+        timeout = float(self._runtime_settings().get("event_timeout_sec", 30.0))
+        return self.rpc_node.call_with_timeout(
+            self._worker_event_call_name(runtime_group),
+            timeout=timeout,
+            module=module_name,
+            callable_module=callable_module,
+            callable_name=callable_name,
+            event_name=event_name,
+            event_payload=event_payload,
+            source="runtime-event",
+        )
+
+    def call_slot(self, module_name, callable_module, callable_name, slot, payload=None):
+        """Dispatch slot callback call to worker owning module runtime group."""
+        if self.rpc_node is None:
+            raise RuntimeError("Runtime supervisor RPC client is not initialized")
+        if self.runtime_plan is None:
+            raise RuntimeError("Runtime plan is not initialized")
+        runtime_data = self.runtime_plan.get("modules", {}).get(module_name, None)
+        if runtime_data is None:
+            raise RuntimeError(f"Unknown runtime module: {module_name}")
+        runtime_group = runtime_data.get("group", "default")
+        timeout = float(self._runtime_settings().get("slot_timeout_sec", 30.0))
+        return self.rpc_node.call_with_timeout(
+            self._worker_slot_call_name(runtime_group),
+            timeout=timeout,
+            module=module_name,
+            callable_module=callable_module,
+            callable_name=callable_name,
+            slot=slot,
+            payload=payload,
+            source="runtime-slot",
+        )
+
+    def call_api(  # pylint: disable=R0913
+            self,
+            module_name,
+            api_version,
+            resource_name,
+            method_name,
+            api_kwargs,
+            request_data,
+        ):
+        """Dispatch API resource method call to worker owning module runtime group."""
+        if self.rpc_node is None:
+            raise RuntimeError("Runtime supervisor RPC client is not initialized")
+        if self.runtime_plan is None:
+            raise RuntimeError("Runtime plan is not initialized")
+        runtime_data = self.runtime_plan.get("modules", {}).get(module_name, None)
+        if runtime_data is None:
+            raise RuntimeError(f"Unknown runtime module: {module_name}")
+        runtime_group = runtime_data.get("group", "default")
+        timeout = float(self._runtime_settings().get("api_timeout_sec", 30.0))
+        return self.rpc_node.call_with_timeout(
+            self._worker_api_call_name(runtime_group),
+            timeout=timeout,
+            module=module_name,
+            api_version=api_version,
+            resource_name=resource_name,
+            method_name=method_name,
+            api_kwargs=api_kwargs,
+            request_data=request_data,
+            source="runtime-api",
         )
 
     def _stop_group(self, runtime_group):
