@@ -42,6 +42,25 @@ def _load_worker_spec():
     return json.loads(raw_data)
 
 
+def _apply_runtime_mode(runtime_mode):
+    """Apply worker runtime mode behavior and return effective mode string."""
+    if runtime_mode == "threaded":
+        return "threaded"
+    if runtime_mode == "gevent":
+        try:
+            import gevent.monkey  # pylint: disable=E0401,C0415
+            gevent.monkey.patch_all()
+            return "gevent"
+        except:  # pylint: disable=W0702
+            log.warning(
+                "Runtime mode is 'gevent' but monkey patching failed; "
+                "continuing in compatibility mode"
+            )
+            return "gevent-unavailable"
+    log.warning("Unknown runtime_mode '%s', using threaded compatibility", runtime_mode)
+    return "threaded"
+
+
 def _make_event_node(zmq_config):
     if not zmq_config.get("enabled", False):
         return arbiter.make_event_node({"type": "MockEventNode"})
@@ -397,6 +416,7 @@ def run_worker():
     worker_spec = _load_worker_spec()
     runtime_group = worker_spec.get("runtime_group", "unknown")
     runtime_mode = worker_spec.get("runtime_mode", "gevent")
+    effective_runtime_mode = _apply_runtime_mode(runtime_mode)
     modules = worker_spec.get("modules", [])
     route_app = flask.Flask(f"runtime_worker_{runtime_group}")
     stop_event = threading.Event()
@@ -415,9 +435,10 @@ def run_worker():
     signal.signal(signal.SIGINT, _sigterm_handler)
 
     log.info(
-        "Runtime worker started [group=%s, mode=%s, modules=%s]",
+        "Runtime worker started [group=%s, mode=%s, effective_mode=%s, modules=%s]",
         runtime_group,
         runtime_mode,
+        effective_runtime_mode,
         ",".join(modules),
     )
 
@@ -434,6 +455,7 @@ def run_worker():
             "worker_id": worker_id,
             "runtime_group": runtime_group,
             "runtime_mode": runtime_mode,
+            "effective_runtime_mode": effective_runtime_mode,
             "modules": modules,
             "initialized_modules": initialized_modules,
         }
@@ -444,6 +466,7 @@ def run_worker():
             "worker_id": worker_id,
             "runtime_group": runtime_group,
             "runtime_mode": runtime_mode,
+            "effective_runtime_mode": effective_runtime_mode,
             "module_count": len(modules),
             "modules": modules,
             "initialized_modules": initialized_modules,

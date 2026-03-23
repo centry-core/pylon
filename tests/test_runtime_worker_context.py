@@ -57,6 +57,7 @@ _install_centry_stubs()
 _install_arbiter_stubs()
 
 from pylon.core.tools.runtime.worker import (  # noqa: E402
+    _apply_runtime_mode,
     _WorkerEventManager,
     _WorkerSlotManager,
     _WorkerModuleManager,
@@ -67,6 +68,30 @@ from pylon.core.tools.runtime.worker import (  # noqa: E402
     _build_worker_context,
     _bootstrap_tools_module,
 )
+
+
+# ---------------------------------------------------------------------------
+# _apply_runtime_mode
+# ---------------------------------------------------------------------------
+
+def test_apply_runtime_mode_threaded_is_noop():
+    assert _apply_runtime_mode("threaded") == "threaded"
+
+
+def test_apply_runtime_mode_unknown_falls_back_to_threaded():
+    assert _apply_runtime_mode("unknown_mode") == "threaded"
+
+
+def test_apply_runtime_mode_gevent_unavailable_returns_compat_mode():
+    existing_gevent = sys.modules.pop("gevent", None)
+    existing_gevent_monkey = sys.modules.pop("gevent.monkey", None)
+    try:
+        assert _apply_runtime_mode("gevent") in ["gevent", "gevent-unavailable"]
+    finally:
+        if existing_gevent is not None:
+            sys.modules["gevent"] = existing_gevent
+        if existing_gevent_monkey is not None:
+            sys.modules["gevent.monkey"] = existing_gevent_monkey
 
 
 # ---------------------------------------------------------------------------
