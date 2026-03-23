@@ -159,6 +159,10 @@ class RuntimeSupervisor:  # pylint: disable=R0902
     def _worker_module_call_name(runtime_group):
         return f"runtime_worker_{runtime_group}_module_call"
 
+    @staticmethod
+    def _worker_route_call_name(runtime_group):
+        return f"runtime_worker_{runtime_group}_route_call"
+
     def _wait_group_ready(self, runtime_group):
         startup_timeout = float(self._runtime_settings().get("startup_timeout_sec", 20.0))
         poll_interval = float(self._runtime_settings().get("startup_poll_interval_sec", 0.5))
@@ -338,6 +342,35 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             args=list(args),
             kwargs=kwargs,
             source="runtime-shim",
+        )
+
+    def call_route(  # pylint: disable=R0913
+            self,
+            module_name,
+            callable_module,
+            callable_name,
+            module_routes,
+            request_data,
+        ):
+        """Dispatch route function call to the worker owning module runtime group."""
+        if self.rpc_node is None:
+            raise RuntimeError("Runtime supervisor RPC client is not initialized")
+        if self.runtime_plan is None:
+            raise RuntimeError("Runtime plan is not initialized")
+        runtime_data = self.runtime_plan.get("modules", {}).get(module_name, None)
+        if runtime_data is None:
+            raise RuntimeError(f"Unknown runtime module: {module_name}")
+        runtime_group = runtime_data.get("group", "default")
+        timeout = float(self._runtime_settings().get("route_timeout_sec", 30.0))
+        return self.rpc_node.call_with_timeout(
+            self._worker_route_call_name(runtime_group),
+            timeout=timeout,
+            module=module_name,
+            callable_module=callable_module,
+            callable_name=callable_name,
+            module_routes=module_routes,
+            request_data=request_data,
+            source="runtime-route",
         )
 
     def _stop_group(self, runtime_group):

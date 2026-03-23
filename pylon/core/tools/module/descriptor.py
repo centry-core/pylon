@@ -210,7 +210,14 @@ class ModuleDescriptor:  # pylint: disable=R0902,R0904
         routes = web.routes_registry.pop(f"plugins.{self.name}", [])
         for route in routes:
             rule, endpoint, obj, options = route
-            if module_routes:
+            if module_routes and hasattr(self.context, "runtime_dispatcher") and \
+                    self.context.runtime_dispatcher.is_remote_module(self.name):
+                obj = self.context.runtime_dispatcher.make_route_view(
+                    self.name,
+                    obj,
+                    module_routes=True,
+                )
+            elif module_routes:
                 obj = functools.partial(obj, self.module)
                 obj.__name__ = obj.func.__name__
             #

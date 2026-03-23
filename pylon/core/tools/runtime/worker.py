@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # coding=utf-8
+# pyright: reportMissingImports=false
 
 #   Copyright 2026 getcarrier.io
 #
@@ -27,6 +28,7 @@ import importlib
 from types import SimpleNamespace
 
 import arbiter  # pylint: disable=E0401
+import flask  # pylint: disable=E0401
 
 from pylon.core.tools import log
 
@@ -117,6 +119,7 @@ def run_worker():
     worker_id = f"{worker_spec.get('node_id', 'unknown')}:{runtime_group}"
     _activate_import_paths(worker_spec)
     module_instances, module_packages = _build_worker_modules(worker_spec)
+    route_app = flask.Flask(f"runtime_worker_{runtime_group}")
 
     def _sigterm_handler(_signal_num, _stack_frame):
         stop_event.set()
@@ -186,16 +189,61 @@ def run_worker():
             target = getattr(module_pkg, method)
             return target(*args, **kwargs)
 
+    def _route_call(  # pylint: disable=R0913
+            module=None,
+            callable_module=None,
+            callable_name=None,
+            module_routes=True,
+            request_data=None,
+            source=None,
+        ):
+        _ = source
+        if module not in modules:
+            raise RuntimeError(f"Module is not assigned to this worker: {module}")
+        if request_data is None:
+            request_data = {}
+        target_pkg = importlib.import_module(callable_module)
+        target_callable = getattr(target_pkg, callable_name)
+        route_kwargs = request_data.get("route_kwargs", {})
+        method = request_data.get("method", "GET")
+        path = request_data.get("path", "/")
+        query_string = request_data.get("query_string", b"")
+        headers = request_data.get("headers", {})
+        body = request_data.get("body", b"")
+        content_type = request_data.get("content_type", None)
+        with route_app.test_request_context(
+                path=path,
+                method=method,
+                query_string=query_string,
+                headers=headers,
+                data=body,
+                content_type=content_type,
+        ):
+            if module_routes:
+                if module not in module_instances:
+                    raise RuntimeError(f"No module instance available in worker: {module}")
+                view_rv = target_callable(module_instances[module], **route_kwargs)
+            else:
+                view_rv = target_callable(**route_kwargs)
+            response = flask.make_response(view_rv)
+            return {
+                "status": response.status_code,
+                "headers": list(response.headers.items()),
+                "body": response.get_data(),
+            }
+
     event_node.start()
     rpc_node.start()
     rpc_node.register(_ping, name=f"runtime_worker_{runtime_group}_ping")
     rpc_node.register(_describe, name=f"runtime_worker_{runtime_group}_describe")
     rpc_node.register(_module_call, name=f"runtime_worker_{runtime_group}_module_call")
+    rpc_node.register(_route_call, name=f"runtime_worker_{runtime_group}_route_call")
 
     try:
         while not stop_event.wait(1.0):
             pass
     finally:
+        rpc_node.unregister(_route_call, name=f"runtime_worker_{runtime_group}_route_call")
         rpc_node.unregister(_module_call, name=f"runtime_worker_{runtime_group}_module_call")
         rpc_node.unregister(_describe, name=f"runtime_worker_{runtime_group}_describe")
         rpc_node.unregister(_ping, name=f"runtime_worker_{runtime_group}_ping")
