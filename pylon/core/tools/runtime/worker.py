@@ -235,8 +235,11 @@ class _WorkerContext(Context):
     """Rich context object for runtime workers."""
 
 
-def _build_worker_context(worker_spec, module_instances):
+def _build_worker_context(worker_spec, module_instances, app=None):
     """Build a rich Context for worker module instances."""
+    if app is None:
+        runtime_group = worker_spec.get("runtime_group", "unknown")
+        app = flask.Flask(f"runtime_worker_{runtime_group}")
     context = _WorkerContext()
     runtime_group = worker_spec.get("runtime_group", "unknown")
     context.id = worker_spec.get("node_id", "unknown")
@@ -246,6 +249,7 @@ def _build_worker_context(worker_spec, module_instances):
     context.pylon_version = worker_spec.get("pylon_version", "unknown")
     context.runtime_worker = True
     context.runtime_group = runtime_group
+    context.app = app
     context.event_manager = _WorkerEventManager()
     context.slot_manager = _WorkerSlotManager()
     _all_module_groups = worker_spec.get("all_module_groups", {})
@@ -267,16 +271,19 @@ def _bootstrap_tools_module(context):
     setattr(sys.modules["tools"], "log", log)
 
 
-def _build_worker_modules(worker_spec):
+def _build_worker_modules(worker_spec, app=None):
     modules = worker_spec.get("modules", [])
     module_specs = worker_spec.get("module_specs", {})
     runtime_group = worker_spec.get("runtime_group", "unknown")
+    if app is None:
+        app = flask.Flask(f"runtime_worker_{runtime_group}")
     # Pre-build a minimal context to instantiate modules; will be enriched below.
     _proto_context = SimpleNamespace(
         id=worker_spec.get("node_id", "unknown"),
         node_name=worker_spec.get("node_name", f"runtime_worker_{runtime_group}"),
         settings=worker_spec.get("settings", {}),
         url_prefix=worker_spec.get("url_prefix", ""),
+        app=app,
         runtime_worker=True,
         runtime_group=runtime_group,
     )
@@ -306,7 +313,7 @@ def _build_worker_modules(worker_spec):
         except:  # pylint: disable=W0702
             log.exception("Failed to instantiate worker module class: %s", module_name)
     # Now build the rich context and patch it into every module instance.
-    rich_context = _build_worker_context(worker_spec, module_instances)
+    rich_context = _build_worker_context(worker_spec, module_instances, app=app)
     _bootstrap_tools_module(rich_context)
     for module_obj in module_instances.values():
         if hasattr(module_obj, "context"):
@@ -391,12 +398,15 @@ def run_worker():
     runtime_group = worker_spec.get("runtime_group", "unknown")
     runtime_mode = worker_spec.get("runtime_mode", "gevent")
     modules = worker_spec.get("modules", [])
+    route_app = flask.Flask(f"runtime_worker_{runtime_group}")
     stop_event = threading.Event()
     worker_id = f"{worker_spec.get('node_id', 'unknown')}:{runtime_group}"
     _activate_import_paths(worker_spec)
-    module_instances, module_packages, worker_context = _build_worker_modules(worker_spec)
+    module_instances, module_packages, worker_context = _build_worker_modules(
+        worker_spec,
+        app=route_app,
+    )
     initialized_modules = _init_worker_modules(module_instances, modules)
-    route_app = flask.Flask(f"runtime_worker_{runtime_group}")
 
     def _sigterm_handler(_signal_num, _stack_frame):
         stop_event.set()

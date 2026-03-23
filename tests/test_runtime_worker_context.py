@@ -270,6 +270,18 @@ def test_build_worker_context_propagates_pylon_version():
     assert ctx.pylon_version == "9.9.9"
 
 
+def test_build_worker_context_has_flask_app():
+    ctx = _build_worker_context(_make_spec(), {})
+    assert hasattr(ctx, "app")
+    assert ctx.app is not None
+
+
+def test_build_worker_context_uses_provided_app():
+    provided_app = SimpleNamespace(name="provided")
+    ctx = _build_worker_context(_make_spec(), {}, app=provided_app)
+    assert ctx.app is provided_app
+
+
 def test_build_worker_context_has_event_manager():
     ctx = _build_worker_context(_make_spec(), {})
     assert isinstance(ctx.event_manager, _WorkerEventManager)
