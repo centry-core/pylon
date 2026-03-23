@@ -55,6 +55,11 @@ from .descriptor import ModuleDescriptor
 from .overrides import PYLON_MODULE_REQUIREMENTS_OVERRIDES
 
 
+DEFAULT_RUNTIME_GROUP = "default"
+DEFAULT_RUNTIME_MODE = "gevent"
+ALLOWED_RUNTIME_MODES = {"gevent", "threaded"}
+
+
 class ModuleManager:  # pylint: disable=R0902
     """ Manages modules """
 
@@ -76,6 +81,8 @@ class ModuleManager:  # pylint: disable=R0902
         self.module = ModuleProxy(self)
         #
         self.load_order = []
+        self.runtime_modules = {}  # module_name -> runtime metadata
+        self.runtime_groups = {}  # runtime_group -> {"mode": str, "modules": [str]}
         #
         self.pylon_requirements_hash = hashlib.sha256(
             self.context.pylon_requirements.encode()
@@ -174,6 +181,8 @@ class ModuleManager:  # pylint: disable=R0902
         # Activate and init/prealod modules
         log.info("Activating modules")
         self._activate_modules(target_module_descriptors)
+        # Build runtime group index from enabled modules for process-runtime orchestration
+        self._build_runtime_index()
         #
         if self.context.server_mode != "preload":
             # Run ready callbacks
@@ -279,6 +288,8 @@ class ModuleManager:  # pylint: disable=R0902
         #
         for module_name, module_metadata, module_loader in meta_items:
             module_meta_map[module_name] = (module_metadata, module_loader)
+        # Validate runtime grouping compatibility before dependency resolution
+        self._validate_runtime_group_modes(module_meta_map)
         #
         return module_meta_map
 
@@ -299,6 +310,8 @@ class ModuleManager:  # pylint: disable=R0902
         #
         for module_name, module_metadata, module_loader in meta_items:
             module_meta_map[module_name] = (module_metadata, module_loader)
+        # Validate runtime grouping compatibility before dependency resolution
+        self._validate_runtime_group_modes(module_meta_map)
         #
         return module_meta_map
 
@@ -309,11 +322,141 @@ class ModuleManager:  # pylint: disable=R0902
             raise ValueError(f"Module has no metadata: {module_name}")
         #
         module_metadata = json.loads(module_loader.get_data("metadata.json"))
+        module_metadata = self._normalize_runtime_metadata(module_name, module_metadata)
         #
         if module_loader.has_directory("static") or module_metadata.get("extract", False):
             module_loader = module_loader.get_local_loader(self.temporary_objects)
         #
         return module_loader, module_metadata
+
+    def _normalize_runtime_metadata(self, module_name, module_metadata):
+        result = module_metadata.copy()
+        runtime_group = result.get("runtime_group", DEFAULT_RUNTIME_GROUP)
+        runtime_mode = result.get("runtime_mode", DEFAULT_RUNTIME_MODE)
+        restart_policy = result.get("restart_policy", "always")
+        # Backward-compatible coercion for legacy values
+        if not isinstance(runtime_group, str) or not runtime_group.strip():
+            log.warning(
+                "Invalid runtime_group in metadata for module '%s', using default '%s'",
+                module_name, DEFAULT_RUNTIME_GROUP,
+            )
+            runtime_group = DEFAULT_RUNTIME_GROUP
+        if not isinstance(runtime_mode, str):
+            runtime_mode = str(runtime_mode)
+        runtime_mode = runtime_mode.lower().strip()
+        if runtime_mode not in ALLOWED_RUNTIME_MODES:
+            log.warning(
+                "Invalid runtime_mode in metadata for module '%s': '%s', using default '%s'",
+                module_name, runtime_mode, DEFAULT_RUNTIME_MODE,
+            )
+            runtime_mode = DEFAULT_RUNTIME_MODE
+        if not isinstance(restart_policy, str):
+            restart_policy = str(restart_policy)
+        restart_policy = restart_policy.lower().strip()
+        if restart_policy not in ["always", "on-failure", "never"]:
+            log.warning(
+                "Invalid restart_policy in metadata for module '%s': '%s', using 'always'",
+                module_name, restart_policy,
+            )
+            restart_policy = "always"
+        result["runtime_group"] = runtime_group.strip()
+        result["runtime_mode"] = runtime_mode
+        result["restart_policy"] = restart_policy
+        return result
+
+    def _validate_runtime_group_modes(self, module_meta_map):
+        strict_mode = self.settings.get("runtime", {}).get("strict_group_mode_validation", True)
+        group_modes = {}
+        modules_to_exclude = []
+        # Dict iteration order reflects order_weight sorting from caller
+        for module_name, module_data in module_meta_map.items():
+            module_metadata, _module_loader = module_data
+            runtime_group = module_metadata.get("runtime_group", DEFAULT_RUNTIME_GROUP)
+            runtime_mode = module_metadata.get("runtime_mode", DEFAULT_RUNTIME_MODE)
+            if runtime_group not in group_modes:
+                group_modes[runtime_group] = runtime_mode
+                continue
+            if group_modes[runtime_group] == runtime_mode:
+                continue
+            message = (
+                "Runtime group mode conflict for group '%s': module '%s' declares '%s' "
+                "but group mode is '%s'"
+            )
+            if strict_mode:
+                log.error(
+                    message + ". Excluding module",
+                    runtime_group, module_name, runtime_mode, group_modes[runtime_group],
+                )
+                modules_to_exclude.append(module_name)
+            else:
+                log.warning(
+                    message + ". Keeping group mode '%s'",
+                    runtime_group, module_name, runtime_mode, group_modes[runtime_group],
+                    group_modes[runtime_group],
+                )
+        for module_name in modules_to_exclude:
+            module_meta_map.pop(module_name, None)
+
+    def _build_runtime_index(self):
+        self.runtime_modules = {}
+        self.runtime_groups = {}
+        # Only enabled modules are included in runtime execution plan
+        for module_name, descriptor in self.modules.items():
+            runtime_group = descriptor.metadata.get("runtime_group", DEFAULT_RUNTIME_GROUP)
+            runtime_mode = descriptor.metadata.get("runtime_mode", DEFAULT_RUNTIME_MODE)
+            restart_policy = descriptor.metadata.get("restart_policy", "always")
+            runtime_data = {
+                "group": runtime_group,
+                "mode": runtime_mode,
+                "restart_policy": restart_policy,
+            }
+            self.runtime_modules[module_name] = runtime_data
+            if runtime_group not in self.runtime_groups:
+                self.runtime_groups[runtime_group] = {
+                    "mode": runtime_mode,
+                    "modules": [],
+                    "restart_policy": restart_policy,
+                }
+            group_data = self.runtime_groups[runtime_group]
+            if group_data["mode"] != runtime_mode:
+                log.error(
+                    "Runtime mode conflict in runtime_group '%s': '%s' vs '%s'. "
+                    "Keeping first value '%s'",
+                    runtime_group,
+                    group_data["mode"],
+                    runtime_mode,
+                    group_data["mode"],
+                )
+            if group_data["restart_policy"] != restart_policy:
+                log.warning(
+                    "Restart policy conflict in runtime_group '%s': '%s' vs '%s'. "
+                    "Using stricter policy 'on-failure'",
+                    runtime_group,
+                    group_data["restart_policy"],
+                    restart_policy,
+                )
+                if "on-failure" in [group_data["restart_policy"], restart_policy]:
+                    group_data["restart_policy"] = "on-failure"
+                elif "never" in [group_data["restart_policy"], restart_policy]:
+                    group_data["restart_policy"] = "never"
+                else:
+                    group_data["restart_policy"] = "always"
+            group_data["modules"].append(module_name)
+        for group_data in self.runtime_groups.values():
+            group_data["modules"].sort()
+
+    def get_runtime_plan(self):
+        return {
+            "modules": self.runtime_modules.copy(),
+            "groups": {
+                key: {
+                    "mode": value["mode"],
+                    "modules": value["modules"].copy(),
+                    "restart_policy": value["restart_policy"],
+                }
+                for key, value in self.runtime_groups.items()
+            },
+        }
 
     def _make_descriptors(self, module_meta_map, module_order):
         module_descriptors = []

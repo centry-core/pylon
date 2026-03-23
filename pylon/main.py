@@ -82,6 +82,7 @@ from pylon.core.tools import external_routing
 from pylon.core.tools import exposure
 from pylon.core.tools import profiling
 from pylon.core.tools import manager
+from pylon.core.tools.runtime import RuntimeSupervisor
 
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.signal import signal_sigterm
@@ -217,6 +218,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Make ModuleManager instance
     log.info("Creating ModuleManager instance")
     context.module_manager = module.ModuleManager(context)
+    # Runtime supervisor is optional and currently feature-flagged
+    context.runtime_supervisor = RuntimeSupervisor(context)
     #
     # Phase: framework
     #
@@ -263,6 +266,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Load and initialize modules
     context.module_manager.init_modules()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)
+    if context.settings.get("modules", {}).get("runtime", {}).get("enabled", False):
+        context.runtime_supervisor.start(context.module_manager.get_runtime_plan())
     # Print profile stats: init
     profiling.profiling_stop(context, "init")
     #
@@ -289,6 +294,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         profiling.profiling_stop(context, "run")
         # Set stop event
         context.stop_event.set()
+        # Stop runtime supervisor before module deinit
+        context.runtime_supervisor.stop()
         # Unexpose pylon
         exposure.unexpose(context)
         # Unregister external route
