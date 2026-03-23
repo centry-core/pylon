@@ -51,6 +51,7 @@ def run_worker():
     runtime_mode = worker_spec.get("runtime_mode", "gevent")
     modules = worker_spec.get("modules", [])
     stop_event = threading.Event()
+    worker_id = f"{worker_spec.get('node_id', 'unknown')}:{runtime_group}"
 
     def _sigterm_handler(_signal_num, _stack_frame):
         stop_event.set()
@@ -70,13 +71,38 @@ def run_worker():
         event_node,
         id_prefix=f"runtime_worker_{runtime_group}_",
     )
+
+    def _ping(payload=None):
+        _ = payload
+        return {
+            "ok": True,
+            "worker_id": worker_id,
+            "runtime_group": runtime_group,
+            "runtime_mode": runtime_mode,
+            "modules": modules,
+        }
+
+    def _describe(payload=None):
+        _ = payload
+        return {
+            "worker_id": worker_id,
+            "runtime_group": runtime_group,
+            "runtime_mode": runtime_mode,
+            "module_count": len(modules),
+            "modules": modules,
+        }
+
     event_node.start()
     rpc_node.start()
+    rpc_node.register(_ping, name=f"runtime_worker_{runtime_group}_ping")
+    rpc_node.register(_describe, name=f"runtime_worker_{runtime_group}_describe")
 
     try:
         while not stop_event.wait(1.0):
             pass
     finally:
+        rpc_node.unregister(_describe, name=f"runtime_worker_{runtime_group}_describe")
+        rpc_node.unregister(_ping, name=f"runtime_worker_{runtime_group}_ping")
         rpc_node.stop()
         event_node.stop()
         log.info("Runtime worker stopped [group=%s]", runtime_group)

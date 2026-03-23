@@ -25,6 +25,8 @@ import signal
 import threading
 import subprocess
 
+import arbiter  # pylint: disable=E0401
+
 from pylon.core.tools import log
 
 
@@ -40,6 +42,8 @@ class RuntimeSupervisor:  # pylint: disable=R0902
         self.stop_event = threading.Event()
         self.processes = {}  # runtime_group -> subprocess.Popen
         self.restart_history = {}  # runtime_group -> [timestamps]
+        self.rpc_event_node = None
+        self.rpc_node = None
 
     def _runtime_settings(self):
         return self.context.settings.get("modules", {}).get("runtime", {})
@@ -114,6 +118,65 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             ",".join(modules),
         )
 
+    def _worker_ping_name(self, runtime_group):
+        return f"runtime_worker_{runtime_group}_ping"
+
+    def _wait_group_ready(self, runtime_group):
+        startup_timeout = float(self._runtime_settings().get("startup_timeout_sec", 20.0))
+        poll_interval = float(self._runtime_settings().get("startup_poll_interval_sec", 0.5))
+        elapsed = 0.0
+        ping_name = self._worker_ping_name(runtime_group)
+        while elapsed <= startup_timeout and not self.stop_event.is_set():
+            try:
+                if self.rpc_node is None:
+                    break
+                response = self.rpc_node.call_with_timeout(
+                    ping_name,
+                    timeout=poll_interval,
+                    payload={
+                        "source": "runtime-supervisor",
+                        "node_id": self.context.id,
+                    },
+                )
+                if isinstance(response, dict) and response.get("ok", False):
+                    return True
+            except:  # pylint: disable=W0702
+                pass
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+        return False
+
+    def _create_rpc_client(self):
+        worker_zmq_config = self._make_worker_zmq_config()
+        if not worker_zmq_config.get("enabled", False):
+            raise RuntimeError("Runtime workers require exposure.zmq.enabled=true")
+        self.rpc_event_node = arbiter.ZeroMQEventNode(
+            connect_sub=worker_zmq_config.get("connect_sub", "tcp://127.0.0.1:5010"),
+            connect_push=worker_zmq_config.get("connect_push", "tcp://127.0.0.1:5011"),
+            topic=worker_zmq_config.get("topic", "events"),
+        )
+        self.rpc_node = arbiter.RpcNode(
+            self.rpc_event_node,
+            id_prefix=f"runtime_supervisor_{self.context.id}_",
+            proxy_timeout=float(self._runtime_settings().get("rpc_timeout_sec", 3.0)),
+        )
+        self.rpc_event_node.start()
+        self.rpc_node.start()
+
+    def _close_rpc_client(self):
+        if self.rpc_node is not None:
+            try:
+                self.rpc_node.stop()
+            except:  # pylint: disable=W0702
+                pass
+        if self.rpc_event_node is not None:
+            try:
+                self.rpc_event_node.stop()
+            except:  # pylint: disable=W0702
+                pass
+        self.rpc_node = None
+        self.rpc_event_node = None
+
     def _should_restart(self, runtime_group, return_code, restart_policy):
         if self.stop_event.is_set():
             return False
@@ -161,6 +224,11 @@ class RuntimeSupervisor:  # pylint: disable=R0902
                     if self._should_restart(runtime_group, return_code, restart_policy):
                         time.sleep(self._restart_backoff())
                         self._spawn_group(runtime_group, group_data)
+                        if not self._wait_group_ready(runtime_group):
+                            log.error(
+                                "Runtime worker '%s' did not become ready after restart",
+                                runtime_group,
+                            )
                 for runtime_group, group_data in groups.items():
                     if runtime_group not in self.processes:
                         self._spawn_group(runtime_group, group_data)
@@ -174,8 +242,12 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             self.runtime_plan = runtime_plan
             groups = self.runtime_plan.get("groups", {})
             log.info("Runtime supervisor initialized (%s groups)", len(groups))
+            self._create_rpc_client()
             for group_name, group_data in groups.items():
                 self._spawn_group(group_name, group_data)
+            for group_name in groups:
+                if not self._wait_group_ready(group_name):
+                    log.error("Runtime worker '%s' did not become ready in time", group_name)
             self.stop_event.clear()
             self.monitor_thread = threading.Thread(
                 target=self._monitor_loop,
@@ -206,6 +278,8 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             for group_name in next_groups:
                 if group_name not in self.processes:
                     self._spawn_group(group_name, self.runtime_plan["groups"][group_name])
+                    if not self._wait_group_ready(group_name):
+                        log.error("Runtime worker '%s' did not become ready in time", group_name)
 
     def _stop_group(self, runtime_group):
         process = self.processes.pop(runtime_group, None)
@@ -240,6 +314,7 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             for runtime_group in list(self.processes):
                 self._stop_group(runtime_group)
             self.started = False
+            self._close_rpc_client()
         if self.monitor_thread is not None:
             self.monitor_thread.join(timeout=5)
         self.monitor_thread = None
