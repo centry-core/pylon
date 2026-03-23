@@ -135,16 +135,100 @@ class _WorkerModuleHolder:  # pylint: disable=R0903
         self.module = module_instance
 
 
-class _WorkerModuleManager:  # pylint: disable=R0903
-    """Module manager stub available inside worker processes."""
+class _WorkerRemoteMethodProxy:  # pylint: disable=R0903
+    """Callable that dispatches a single method call to a remote worker via RPC."""
 
-    def __init__(self, module_instances):
-        self.modules = {
+    def __init__(self, module_manager, group, module_name, method_name):
+        self._module_manager = module_manager
+        self._group = group
+        self._module_name = module_name
+        self._method_name = method_name
+
+    def __call__(self, *args, **kwargs):
+        rpc_node = self._module_manager._rpc_node  # pylint: disable=W0212
+        if rpc_node is None:
+            raise RuntimeError(
+                f"Worker RPC not ready: cannot call "
+                f"{self._module_name}.{self._method_name}"
+            )
+        result = rpc_node.call_with_timeout(
+            f"runtime_worker_{self._group}_module_call",
+            timeout=self._module_manager._rpc_timeout,  # pylint: disable=W0212
+            module=self._module_name,
+            method=self._method_name,
+            args=list(args),
+            kwargs=kwargs,
+            source="worker-cross-group",
+        )
+        if isinstance(result, dict) and result.get("__runtime_envelope__", False):
+            if result.get("ok", False):
+                return result.get("result", None)
+            error_data = result.get("error", {})
+            raise RuntimeError(
+                f"{error_data.get('type', 'RuntimeError')}: "
+                f"{error_data.get('message', 'call failed')}"
+            )
+        return result
+
+
+class _WorkerRemoteModuleProxy:  # pylint: disable=R0903
+    """Attribute proxy that returns _WorkerRemoteMethodProxy for any method name."""
+
+    def __init__(self, module_manager, group, module_name):
+        self._module_manager = module_manager
+        self._group = group
+        self._module_name = module_name
+
+    def __getattr__(self, method_name):
+        if method_name.startswith("_"):
+            raise AttributeError(method_name)
+        return _WorkerRemoteMethodProxy(
+            self._module_manager, self._group, self._module_name, method_name
+        )
+
+
+class _WorkerRemoteModuleHolder:  # pylint: disable=R0903
+    """Holder whose .module attribute is a _WorkerRemoteModuleProxy."""
+
+    def __init__(self, module_manager, group, module_name):
+        self.module = _WorkerRemoteModuleProxy(module_manager, group, module_name)
+
+
+class _WorkerModuleManager:
+    """Module manager for worker processes.
+
+    Exposes local module instances directly and wraps remote modules (those
+    assigned to other runtime groups) with an RPC-dispatching proxy so plugin
+    code can call ``context.module_manager.modules[name].module.method()``
+    regardless of where the target module lives.
+    """
+
+    def __init__(self, module_instances, all_module_groups=None, local_group=None):
+        _ = local_group
+        self._rpc_node = None
+        self._rpc_timeout = 30.0
+        local = {
             name: _WorkerModuleHolder(inst)
             for name, inst in module_instances.items()
         }
+        remote = {}
+        if all_module_groups:
+            for module_name, group_name in all_module_groups.items():
+                if module_name not in local:
+                    remote[module_name] = _WorkerRemoteModuleHolder(
+                        self, group_name, module_name
+                    )
+        self.modules = {**remote, **local}
         self.descriptors = {}
-        self.runtime_modules = {}
+        self.runtime_modules = (
+            {name: {"group": grp} for name, grp in all_module_groups.items()}
+            if all_module_groups else {}
+        )
+
+    def set_rpc_node(self, rpc_node, timeout=30.0):
+        """Wire in the arbiter RpcNode after it has been started."""
+        self._rpc_node = rpc_node
+        self._rpc_timeout = timeout
 
 
 class _WorkerContext(Context):
@@ -164,7 +248,13 @@ def _build_worker_context(worker_spec, module_instances):
     context.runtime_group = runtime_group
     context.event_manager = _WorkerEventManager()
     context.slot_manager = _WorkerSlotManager()
-    context.module_manager = _WorkerModuleManager(module_instances)
+    _all_module_groups = worker_spec.get("all_module_groups", {})
+    _local_group = worker_spec.get("runtime_group", "default")
+    context.module_manager = _WorkerModuleManager(
+        module_instances,
+        all_module_groups=_all_module_groups,
+        local_group=_local_group,
+    )
     return context
 
 
@@ -224,7 +314,12 @@ def _build_worker_modules(worker_spec):
                 module_obj.context = rich_context
             except:  # pylint: disable=W0702
                 pass
-    rich_context.module_manager = _WorkerModuleManager(module_instances)
+    _all_module_groups = worker_spec.get("all_module_groups", {})
+    rich_context.module_manager = _WorkerModuleManager(
+        module_instances,
+        all_module_groups=_all_module_groups,
+        local_group=runtime_group,
+    )
     return module_instances, module_packages, rich_context
 
 
@@ -517,6 +612,10 @@ def run_worker():
 
     event_node.start()
     rpc_node.start()
+    worker_context.module_manager.set_rpc_node(
+        rpc_node,
+        timeout=float(worker_spec.get("rpc_timeout_sec", 30.0)),
+    )
     rpc_node.register(_ping, name=f"runtime_worker_{runtime_group}_ping")
     rpc_node.register(_describe, name=f"runtime_worker_{runtime_group}_describe")
     rpc_node.register(_module_call, name=f"runtime_worker_{runtime_group}_module_call")

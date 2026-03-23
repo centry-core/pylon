@@ -13,6 +13,7 @@ import sys
 import types
 import importlib.util
 from types import SimpleNamespace
+import pytest
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +61,8 @@ from pylon.core.tools.runtime.worker import (  # noqa: E402
     _WorkerSlotManager,
     _WorkerModuleManager,
     _WorkerModuleHolder,
+    _WorkerRemoteModuleHolder,
+    _WorkerRemoteMethodProxy,
     _WorkerContext,
     _build_worker_context,
     _bootstrap_tools_module,
@@ -131,6 +134,100 @@ def test_worker_module_manager_empty_descriptors_and_runtime_modules():
     mgr = _WorkerModuleManager({})
     assert mgr.descriptors == {}
     assert mgr.runtime_modules == {}
+
+
+def test_worker_module_manager_remote_modules_added_for_non_local():
+    mgr = _WorkerModuleManager(
+        {},
+        all_module_groups={"local_mod": "grp_a", "remote_mod": "grp_b"},
+        local_group="grp_a",
+    )
+    assert "remote_mod" in mgr.modules
+    assert isinstance(mgr.modules["remote_mod"], _WorkerRemoteModuleHolder)
+
+
+def test_worker_module_manager_local_shadows_remote():
+    class FakeModule:
+        pass
+
+    instance = FakeModule()
+    mgr = _WorkerModuleManager(
+        {"shared": instance},
+        all_module_groups={"shared": "grp_a"},
+        local_group="grp_a",
+    )
+    assert isinstance(mgr.modules["shared"], _WorkerModuleHolder)
+    assert mgr.modules["shared"].module is instance
+
+
+def test_worker_module_manager_runtime_modules_populated():
+    mgr = _WorkerModuleManager(
+        {},
+        all_module_groups={"a": "g1", "b": "g2"},
+    )
+    assert mgr.runtime_modules == {"a": {"group": "g1"}, "b": {"group": "g2"}}
+
+
+def test_worker_module_manager_set_rpc_node_enables_remote_call():
+    """set_rpc_node wires the RPC node into remote method proxies."""
+    calls = []
+
+    class FakeRpcNode:
+        def call_with_timeout(self, service, timeout, **kwargs):
+            calls.append((service, kwargs))
+            return {"__runtime_envelope__": True, "ok": True, "result": 42}
+
+    mgr = _WorkerModuleManager(
+        {},
+        all_module_groups={"remote_mod": "grp_b"},
+    )
+    mgr.set_rpc_node(FakeRpcNode(), timeout=5.0)
+
+    result = mgr.modules["remote_mod"].module.do_something("arg1", kwarg1="v")
+    assert result == 42
+    assert calls[0][0] == "runtime_worker_grp_b_module_call"
+    assert calls[0][1]["module"] == "remote_mod"
+    assert calls[0][1]["method"] == "do_something"
+    assert calls[0][1]["args"] == ["arg1"]
+    assert calls[0][1]["kwargs"] == {"kwarg1": "v"}
+
+
+def test_worker_remote_method_raises_before_rpc_node_set():
+    mgr = _WorkerModuleManager(
+        {},
+        all_module_groups={"remote_mod": "grp_b"},
+    )
+    # rpc_node still None
+    with pytest.raises(RuntimeError, match="Worker RPC not ready"):
+        mgr.modules["remote_mod"].module.any_method()
+
+
+def test_worker_remote_method_raises_on_error_envelope():
+    class FakeRpcNode:
+        def call_with_timeout(self, service, timeout, **kwargs):
+            return {
+                "__runtime_envelope__": True,
+                "ok": False,
+                "error": {"type": "ValueError", "message": "bad input"},
+            }
+
+    mgr = _WorkerModuleManager(
+        {},
+        all_module_groups={"remote_mod": "grp_b"},
+    )
+    mgr.set_rpc_node(FakeRpcNode(), timeout=5.0)
+
+    with pytest.raises(RuntimeError, match="ValueError: bad input"):
+        mgr.modules["remote_mod"].module.method()
+
+
+def test_worker_remote_module_proxy_private_attr_raises():
+    mgr = _WorkerModuleManager(
+        {},
+        all_module_groups={"remote_mod": "grp_b"},
+    )
+    with pytest.raises(AttributeError):
+        _ = mgr.modules["remote_mod"].module.__private
 
 
 # ---------------------------------------------------------------------------

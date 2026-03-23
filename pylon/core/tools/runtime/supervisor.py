@@ -77,6 +77,12 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             "settings": self.context.settings,
             "url_prefix": getattr(self.context, "url_prefix", ""),
             "pylon_version": getattr(self.context, "pylon_version", "unknown"),
+            "all_module_groups": {
+                module_name: module_data.get("group", "default")
+                for module_name, module_data in (
+                    self.runtime_plan.get("modules", {}) if self.runtime_plan else {}
+                ).items()
+            },
         }
         worker_env["PYLON_RUNTIME_WORKER_SPEC"] = json.dumps(worker_spec)
         return worker_env
