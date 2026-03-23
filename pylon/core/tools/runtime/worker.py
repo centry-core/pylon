@@ -21,6 +21,7 @@ import os
 import json
 import signal
 import threading
+import importlib
 
 import arbiter  # pylint: disable=E0401
 
@@ -92,15 +93,40 @@ def run_worker():
             "modules": modules,
         }
 
+    def _module_call(module=None, method=None, args=None, kwargs=None, source=None):
+        _ = source
+        if module not in modules:
+            raise RuntimeError(f"Module is not assigned to this worker: {module}")
+        if args is None:
+            args = []
+        if kwargs is None:
+            kwargs = {}
+        # Transitional behavior: bridge module.method to existing RPC naming when available.
+        rpc_name = f"{module}_{method}"
+        try:
+            return rpc_node.call_with_timeout(
+                rpc_name,
+                timeout=float(worker_spec.get("rpc_timeout_sec", 30.0)),
+                *args,
+                **kwargs,
+            )
+        except:  # pylint: disable=W0702
+            # Fallback for plugin module-level helper functions, if present.
+            module_pkg = importlib.import_module(f"plugins.{module}.module")
+            target = getattr(module_pkg, method)
+            return target(*args, **kwargs)
+
     event_node.start()
     rpc_node.start()
     rpc_node.register(_ping, name=f"runtime_worker_{runtime_group}_ping")
     rpc_node.register(_describe, name=f"runtime_worker_{runtime_group}_describe")
+    rpc_node.register(_module_call, name=f"runtime_worker_{runtime_group}_module_call")
 
     try:
         while not stop_event.wait(1.0):
             pass
     finally:
+        rpc_node.unregister(_module_call, name=f"runtime_worker_{runtime_group}_module_call")
         rpc_node.unregister(_describe, name=f"runtime_worker_{runtime_group}_describe")
         rpc_node.unregister(_ping, name=f"runtime_worker_{runtime_group}_ping")
         rpc_node.stop()

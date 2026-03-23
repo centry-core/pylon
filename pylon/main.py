@@ -83,6 +83,7 @@ from pylon.core.tools import exposure
 from pylon.core.tools import profiling
 from pylon.core.tools import manager
 from pylon.core.tools.runtime import RuntimeSupervisor
+from pylon.core.tools.runtime import RuntimeDispatcher
 
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.signal import signal_sigterm
@@ -220,6 +221,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     context.module_manager = module.ModuleManager(context)
     # Runtime supervisor is optional and currently feature-flagged
     context.runtime_supervisor = RuntimeSupervisor(context)
+    context.runtime_dispatcher = RuntimeDispatcher(context)
     #
     # Phase: framework
     #

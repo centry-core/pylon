@@ -26,6 +26,12 @@ class ModuleProxy:  # pylint: disable=R0903
         self.__module_manager = module_manager
 
     def __getattr__(self, name):
+        context = self.__module_manager.context
+        if hasattr(context, "runtime_dispatcher"):
+            try:
+                return context.runtime_dispatcher.get_module_proxy(name)
+            except:  # pylint: disable=W0702
+                pass
         return self.__module_manager.modules[name].module
 
 

@@ -4,5 +4,6 @@
 """ Runtime process orchestration tools """
 
 from .supervisor import RuntimeSupervisor
+from .dispatcher import RuntimeDispatcher
 
-__all__ = ["RuntimeSupervisor"]
+__all__ = ["RuntimeSupervisor", "RuntimeDispatcher"]
