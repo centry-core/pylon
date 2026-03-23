@@ -43,12 +43,13 @@ def _load_worker_spec():
 
 def _make_event_node(zmq_config):
     if not zmq_config.get("enabled", False):
-        return arbiter.MockEventNode()
-    return arbiter.ZeroMQEventNode(
-        connect_sub=zmq_config.get("connect_sub", "tcp://127.0.0.1:5010"),
-        connect_push=zmq_config.get("connect_push", "tcp://127.0.0.1:5011"),
-        topic=zmq_config.get("topic", "events"),
-    )
+        return arbiter.make_event_node({"type": "MockEventNode"})
+    return arbiter.make_event_node({
+        "type": "ZeroMQEventNode",
+        "connect_sub": zmq_config.get("connect_sub", "tcp://127.0.0.1:5010"),
+        "connect_push": zmq_config.get("connect_push", "tcp://127.0.0.1:5011"),
+        "topic": zmq_config.get("topic", "events"),
+    })
 
 
 def _activate_import_paths(worker_spec):

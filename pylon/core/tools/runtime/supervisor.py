@@ -136,11 +136,20 @@ class RuntimeSupervisor:  # pylint: disable=R0902
         if not modules:
             return
         cmd = [sys.executable, "-m", "pylon.core.tools.runtime.worker"]
+        stdio_mode = self._runtime_settings().get("worker_stdio", "null")
+        if stdio_mode == "inherit":
+            target_stdout = None
+            target_stderr = None
+        else:
+            target_stdout = subprocess.DEVNULL
+            target_stderr = subprocess.DEVNULL
+        worker_cwd = self._runtime_settings().get("worker_cwd", None)
         process = subprocess.Popen(  # pylint: disable=R1732
             cmd,
             env=self._worker_env(runtime_group, group_data),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=target_stdout,
+            stderr=target_stderr,
+            cwd=worker_cwd,
             start_new_session=True,
         )
         self.processes[runtime_group] = process
@@ -204,11 +213,12 @@ class RuntimeSupervisor:  # pylint: disable=R0902
         worker_zmq_config = self._make_worker_zmq_config()
         if not worker_zmq_config.get("enabled", False):
             raise RuntimeError("Runtime workers require exposure.zmq.enabled=true")
-        self.rpc_event_node = arbiter.ZeroMQEventNode(
-            connect_sub=worker_zmq_config.get("connect_sub", "tcp://127.0.0.1:5010"),
-            connect_push=worker_zmq_config.get("connect_push", "tcp://127.0.0.1:5011"),
-            topic=worker_zmq_config.get("topic", "events"),
-        )
+        self.rpc_event_node = arbiter.make_event_node({
+            "type": "ZeroMQEventNode",
+            "connect_sub": worker_zmq_config.get("connect_sub", "tcp://127.0.0.1:5010"),
+            "connect_push": worker_zmq_config.get("connect_push", "tcp://127.0.0.1:5011"),
+            "topic": worker_zmq_config.get("topic", "events"),
+        })
         self.rpc_node = arbiter.RpcNode(
             self.rpc_event_node,
             id_prefix=f"runtime_supervisor_{self.context.id}_",

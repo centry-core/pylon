@@ -4,6 +4,7 @@
 
 import sys
 import types
+import importlib.util
 from types import SimpleNamespace
 
 import flask
@@ -35,6 +36,8 @@ def _install_centry_stubs():
 
 def _install_arbiter_stubs():
     if "arbiter" in sys.modules:
+        return
+    if importlib.util.find_spec("arbiter") is not None:
         return
     arbiter_mod = types.ModuleType("arbiter")
     arbiter_mod.ZeroMQEventNode = object
