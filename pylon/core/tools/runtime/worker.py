@@ -96,6 +96,38 @@ class _WorkerEventManager:  # pylint: disable=R0903
                 log.exception("Worker event listener raised: %s", event)
 
 
+class _WorkerSlotManager:  # pylint: disable=R0903
+    """Local-only slot manager for runtime workers.
+
+    Callbacks registered here are called directly within the worker process
+    with no cross-process dispatch.  The interface mirrors SlotManager so
+    plugins can call register_callback / unregister_callback / run_slot
+    without any changes.
+    """
+
+    def __init__(self):
+        self._callbacks = {}  # slot -> [callable]
+
+    def register_callback(self, slot, callback):
+        self._callbacks.setdefault(slot, []).append(callback)
+
+    def unregister_callback(self, slot, callback):
+        slot_cbs = self._callbacks.get(slot, [])
+        if callback in slot_cbs:
+            slot_cbs.remove(callback)
+
+    def run_slot(self, slot, payload=None):
+        results = []
+        for cb in list(self._callbacks.get(slot, [])):
+            try:
+                result = cb(slot, payload)
+                if result is not None:
+                    results.append(result)
+            except:  # pylint: disable=W0702
+                log.exception("Worker slot callback raised: %s", slot)
+        return "\n".join(results)
+
+
 class _WorkerModuleHolder:  # pylint: disable=R0903
     """Mimics context.module_manager.modules[name].module for local worker instances."""
 
@@ -131,7 +163,7 @@ def _build_worker_context(worker_spec, module_instances):
     context.runtime_worker = True
     context.runtime_group = runtime_group
     context.event_manager = _WorkerEventManager()
-    context.slot_manager = None
+    context.slot_manager = _WorkerSlotManager()
     context.module_manager = _WorkerModuleManager(module_instances)
     return context
 

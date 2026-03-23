@@ -57,6 +57,7 @@ _install_arbiter_stubs()
 
 from pylon.core.tools.runtime.worker import (  # noqa: E402
     _WorkerEventManager,
+    _WorkerSlotManager,
     _WorkerModuleManager,
     _WorkerModuleHolder,
     _WorkerContext,
@@ -186,9 +187,73 @@ def test_build_worker_context_has_module_manager():
     assert ctx.module_manager.modules["beta"].module is instance
 
 
-def test_build_worker_context_slot_manager_is_none():
+# ---------------------------------------------------------------------------
+# _WorkerSlotManager
+# ---------------------------------------------------------------------------
+
+def test_worker_slot_manager_run_calls_registered_callback():
+    mgr = _WorkerSlotManager()
+    results = []
+
+    def cb(slot, payload):
+        results.append((slot, payload))
+        return "rendered"
+
+    mgr.register_callback("sidebar", cb)
+    output = mgr.run_slot("sidebar", {"user": "alice"})
+
+    assert results == [("sidebar", {"user": "alice"})]
+    assert output == "rendered"
+
+
+def test_worker_slot_manager_unregister_stops_callback():
+    mgr = _WorkerSlotManager()
+    calls = []
+
+    def cb(slot, payload):
+        calls.append(slot)
+        return "x"
+
+    mgr.register_callback("nav", cb)
+    mgr.unregister_callback("nav", cb)
+    output = mgr.run_slot("nav", None)
+
+    assert calls == []
+    assert output == ""
+
+
+def test_worker_slot_manager_run_unknown_slot_returns_empty():
+    mgr = _WorkerSlotManager()
+    assert mgr.run_slot("no.such.slot") == ""
+
+
+def test_worker_slot_manager_multiple_callbacks_joined():
+    mgr = _WorkerSlotManager()
+    mgr.register_callback("footer", lambda *_: "A")
+    mgr.register_callback("footer", lambda *_: "B")
+    assert mgr.run_slot("footer") == "A\nB"
+
+
+def test_worker_slot_manager_callback_exception_is_swallowed():
+    mgr = _WorkerSlotManager()
+
+    def bad_cb(slot, payload):
+        raise ValueError("kaboom")
+
+    mgr.register_callback("x", bad_cb)
+    output = mgr.run_slot("x")  # must not propagate
+    assert output == ""
+
+
+def test_worker_slot_manager_callback_returning_none_excluded():
+    mgr = _WorkerSlotManager()
+    mgr.register_callback("y", lambda *_: None)
+    assert mgr.run_slot("y") == ""
+
+
+def test_build_worker_context_has_slot_manager():
     ctx = _build_worker_context(_make_spec(), {})
-    assert ctx.slot_manager is None
+    assert isinstance(ctx.slot_manager, _WorkerSlotManager)
 
 
 def test_build_worker_context_is_context_instance():
