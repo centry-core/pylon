@@ -18,6 +18,9 @@
 
 """ Runtime dispatch and module import shims """
 
+import sys
+import types
+
 import flask  # pylint: disable=E0401
 import flask_restful  # pylint: disable=E0401
 
@@ -50,11 +53,27 @@ class RuntimeModuleProxy:  # pylint: disable=R0903
         return RuntimeMethodProxy(self.dispatcher, self.module_name, method_name)
 
 
+class RuntimeImportShimModule(types.ModuleType):
+    """Module-like shim that forwards attribute access to runtime dispatcher."""
+
+    def __init__(self, dispatcher, module_name):
+        super().__init__(f"plugins.{module_name}.runtime_shim")
+        self._dispatcher = dispatcher
+        self._module_name = module_name
+        self.__package__ = f"plugins.{module_name}"
+
+    def __getattr__(self, attr_name):
+        if attr_name.startswith("__"):
+            raise AttributeError(attr_name)
+        return getattr(self._dispatcher.get_module_proxy(self._module_name), attr_name)
+
+
 class RuntimeDispatcher:  # pylint: disable=R0903
     """Resolves local vs remote module execution and creates call shims."""
 
     def __init__(self, context):
         self.context = context
+        self._patched_modules = {}
 
     def _runtime_settings(self):
         return self.context.settings.get("modules", {}).get("runtime", {})
@@ -91,6 +110,70 @@ class RuntimeDispatcher:  # pylint: disable=R0903
         if not self.is_remote_module(module_name):
             return module_manager.modules[module_name].module
         return RuntimeModuleProxy(self, module_name)
+
+    def refresh_shims(self):
+        """Install or restore direct import shims for remote plugin modules."""
+        current_remote_modules = {
+            module_name
+            for module_name in self.context.module_manager.runtime_modules
+            if self.is_remote_module(module_name)
+        }
+        for module_name in list(self._patched_modules):
+            if module_name not in current_remote_modules:
+                self._restore_module_shim(module_name)
+        for module_name in sorted(current_remote_modules):
+            self._install_module_shim(module_name)
+
+    def _install_module_shim(self, module_name):
+        module_path = f"plugins.{module_name}.module"
+        package_path = f"plugins.{module_name}"
+        if module_path not in sys.modules or package_path not in sys.modules:
+            return
+        real_module = sys.modules[module_path]
+        package_module = sys.modules[package_path]
+        existing_patch = self._patched_modules.get(module_name, None)
+        if existing_patch is not None and existing_patch.get("real_module") is real_module:
+            return
+        if existing_patch is not None:
+            self._restore_module_shim(module_name)
+        shim_module = RuntimeImportShimModule(self, module_name)
+        patched_attrs = {}
+        for attr_name, attr_value in list(real_module.__dict__.items()):
+            if attr_name.startswith("_"):
+                continue
+            if attr_name in ["Module"]:
+                continue
+            if not callable(attr_value):
+                continue
+            patched_attrs[attr_name] = attr_value
+            setattr(real_module, attr_name, RuntimeMethodProxy(self, module_name, attr_name))
+        original_package_module_attr = getattr(package_module, "module", None)
+        setattr(package_module, "module", shim_module)
+        setattr(package_module, "runtime_shim", shim_module)
+        sys.modules[f"plugins.{module_name}.runtime_shim"] = shim_module
+        self._patched_modules[module_name] = {
+            "real_module": real_module,
+            "package_module": package_module,
+            "patched_attrs": patched_attrs,
+            "original_package_module_attr": original_package_module_attr,
+            "shim_module": shim_module,
+        }
+
+    def _restore_module_shim(self, module_name):
+        patch_data = self._patched_modules.pop(module_name, None)
+        if patch_data is None:
+            return
+        real_module = patch_data["real_module"]
+        package_module = patch_data["package_module"]
+        for attr_name, attr_value in patch_data["patched_attrs"].items():
+            setattr(real_module, attr_name, attr_value)
+        if patch_data["original_package_module_attr"] is not None:
+            setattr(package_module, "module", patch_data["original_package_module_attr"])
+        elif hasattr(package_module, "module"):
+            delattr(package_module, "module")
+        if hasattr(package_module, "runtime_shim"):
+            delattr(package_module, "runtime_shim")
+        sys.modules.pop(f"plugins.{module_name}.runtime_shim", None)
 
     @staticmethod
     def _capture_request_data(route_kwargs=None):

@@ -138,3 +138,62 @@ def test_runtime_disabled_forces_local_execution_path():
     dispatcher = RuntimeDispatcher(context)
 
     assert dispatcher.is_remote_module("remote_module") is False
+
+
+def test_refresh_shims_patches_remote_plugin_module_imports():
+    context = _make_context(runtime_enabled=True, local_group="default")
+    dispatcher = RuntimeDispatcher(context)
+
+    plugins_pkg = types.ModuleType("plugins")
+    remote_pkg = types.ModuleType("plugins.remote_module")
+    remote_mod = types.ModuleType("plugins.remote_module.module")
+    original_callable = lambda *args, **kwargs: "local-impl"
+    remote_mod.some_function = original_callable
+    remote_pkg.module = remote_mod
+
+    sys.modules["plugins"] = plugins_pkg
+    sys.modules["plugins.remote_module"] = remote_pkg
+    sys.modules["plugins.remote_module.module"] = remote_mod
+
+    dispatcher.refresh_shims()
+
+    assert hasattr(remote_pkg, "runtime_shim")
+    assert remote_pkg.module is remote_pkg.runtime_shim
+    result = remote_pkg.module.some_function(10, flag=True)
+    assert result == "remote-result"
+    assert context.runtime_supervisor.calls[-1] == (
+        "remote_module", "some_function", (10,), {"flag": True}
+    )
+    assert sys.modules["plugins.remote_module.module"].some_function is not original_callable
+
+    del sys.modules["plugins.remote_module.module"]
+    del sys.modules["plugins.remote_module"]
+    del sys.modules["plugins"]
+
+
+def test_refresh_shims_restores_module_when_it_becomes_local():
+    context = _make_context(runtime_enabled=True, local_group="default")
+    dispatcher = RuntimeDispatcher(context)
+
+    plugins_pkg = types.ModuleType("plugins")
+    remote_pkg = types.ModuleType("plugins.remote_module")
+    remote_mod = types.ModuleType("plugins.remote_module.module")
+    original_callable = lambda: "local-impl"
+    remote_mod.some_function = original_callable
+    remote_pkg.module = remote_mod
+
+    sys.modules["plugins"] = plugins_pkg
+    sys.modules["plugins.remote_module"] = remote_pkg
+    sys.modules["plugins.remote_module.module"] = remote_mod
+
+    dispatcher.refresh_shims()
+    context.module_manager.runtime_modules["remote_module"]["group"] = "default"
+    dispatcher.refresh_shims()
+
+    assert remote_pkg.module is remote_mod
+    assert remote_mod.some_function is original_callable
+    assert "plugins.remote_module.runtime_shim" not in sys.modules
+
+    del sys.modules["plugins.remote_module.module"]
+    del sys.modules["plugins.remote_module"]
+    del sys.modules["plugins"]

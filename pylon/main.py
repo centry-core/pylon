@@ -267,6 +267,7 @@ def main():  # pylint: disable=R0912,R0914,R0915
     profiling.profiling_start(context, "init")
     # Load and initialize modules
     context.module_manager.init_modules()
+    context.runtime_dispatcher.refresh_shims()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)
     if context.settings.get("modules", {}).get("runtime", {}).get("enabled", False):
         context.runtime_supervisor.start(context.module_manager.get_runtime_plan())

@@ -168,6 +168,8 @@ class Manager:  # pylint: disable=R0903,R0902
         if self.context.settings.get("modules", {}).get("runtime", {}).get("enabled", False) and \
                 hasattr(self.context, "runtime_supervisor"):
             runtime_plan = self.context.module_manager.rebuild_runtime_index()
+            if hasattr(self.context, "runtime_dispatcher"):
+                self.context.runtime_dispatcher.refresh_shims()
             self.context.runtime_supervisor.reload(runtime_plan)
 
     def reload_apps(self):
