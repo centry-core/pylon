@@ -458,6 +458,11 @@ class ModuleManager:  # pylint: disable=R0902
             },
         }
 
+    def rebuild_runtime_index(self):
+        """Rebuild runtime group/module index from currently enabled modules."""
+        self._build_runtime_index()
+        return self.get_runtime_plan()
+
     def _make_descriptors(self, module_meta_map, module_order):
         module_descriptors = []
         #

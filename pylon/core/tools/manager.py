@@ -164,6 +164,11 @@ class Manager:  # pylint: disable=R0903,R0902
         #
         self.context.app_manager.add_api_instance()
         self.reload_apps()
+        # Refresh runtime worker plan after successful plugin reload
+        if self.context.settings.get("modules", {}).get("runtime", {}).get("enabled", False) and \
+                hasattr(self.context, "runtime_supervisor"):
+            runtime_plan = self.context.module_manager.rebuild_runtime_index()
+            self.context.runtime_supervisor.reload(runtime_plan)
 
     def reload_apps(self):
         """ Reload all apps """
