@@ -109,6 +109,41 @@ def _build_worker_modules(worker_spec):
     return module_instances, module_packages
 
 
+def _init_worker_modules(module_instances, module_order):
+    initialized_modules = []
+    for module_name in module_order:
+        if module_name not in module_instances:
+            continue
+        module_obj = module_instances[module_name]
+        try:
+            if hasattr(module_obj, "init"):
+                module_obj.init()
+            if hasattr(module_obj, "ready"):
+                module_obj.ready()
+        except:  # pylint: disable=W0702
+            log.exception("Worker module init/ready failed: %s", module_name)
+            continue
+        initialized_modules.append(module_name)
+    return initialized_modules
+
+
+def _deinit_worker_modules(module_instances, initialized_modules):
+    for module_name in reversed(initialized_modules):
+        if module_name not in module_instances:
+            continue
+        module_obj = module_instances[module_name]
+        try:
+            if hasattr(module_obj, "unready"):
+                module_obj.unready()
+        except:  # pylint: disable=W0702
+            log.exception("Worker module unready failed: %s", module_name)
+        try:
+            if hasattr(module_obj, "deinit"):
+                module_obj.deinit()
+        except:  # pylint: disable=W0702
+            log.exception("Worker module deinit failed: %s", module_name)
+
+
 def run_worker():
     """Runtime worker process entrypoint."""
     worker_spec = _load_worker_spec()
@@ -119,6 +154,7 @@ def run_worker():
     worker_id = f"{worker_spec.get('node_id', 'unknown')}:{runtime_group}"
     _activate_import_paths(worker_spec)
     module_instances, module_packages = _build_worker_modules(worker_spec)
+    initialized_modules = _init_worker_modules(module_instances, modules)
     route_app = flask.Flask(f"runtime_worker_{runtime_group}")
 
     def _sigterm_handler(_signal_num, _stack_frame):
@@ -148,6 +184,7 @@ def run_worker():
             "runtime_group": runtime_group,
             "runtime_mode": runtime_mode,
             "modules": modules,
+            "initialized_modules": initialized_modules,
         }
 
     def _describe(payload=None):
@@ -158,6 +195,7 @@ def run_worker():
             "runtime_mode": runtime_mode,
             "module_count": len(modules),
             "modules": modules,
+            "initialized_modules": initialized_modules,
         }
 
     def _module_call(module=None, method=None, args=None, kwargs=None, source=None):
@@ -332,6 +370,7 @@ def run_worker():
         while not stop_event.wait(1.0):
             pass
     finally:
+        _deinit_worker_modules(module_instances, initialized_modules)
         rpc_node.unregister(_api_call, name=f"runtime_worker_{runtime_group}_api_call")
         rpc_node.unregister(_slot_call, name=f"runtime_worker_{runtime_group}_slot_call")
         rpc_node.unregister(_event_call, name=f"runtime_worker_{runtime_group}_event_call")
