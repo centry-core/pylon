@@ -32,6 +32,7 @@ import arbiter  # pylint: disable=E0401
 import flask  # pylint: disable=E0401
 
 from pylon.core.tools import log
+from pylon.core.tools.context import Context
 
 
 def _load_worker_spec():
@@ -73,13 +74,87 @@ def _activate_import_paths(worker_spec):
                 sys.path.insert(0, loader_parent)
 
 
+class _WorkerEventManager:  # pylint: disable=R0903
+    """Local-only event manager for runtime workers."""
+
+    def __init__(self):
+        self._listeners = {}  # event_name -> [callable]
+
+    def register_listener(self, event, listener):
+        self._listeners.setdefault(event, []).append(listener)
+
+    def unregister_listener(self, event, listener):
+        listeners = self._listeners.get(event, [])
+        if listener in listeners:
+            listeners.remove(listener)
+
+    def fire_event(self, event, payload=None):
+        for listener in list(self._listeners.get(event, [])):
+            try:
+                listener(None, event, payload)
+            except:  # pylint: disable=W0702
+                log.exception("Worker event listener raised: %s", event)
+
+
+class _WorkerModuleHolder:  # pylint: disable=R0903
+    """Mimics context.module_manager.modules[name].module for local worker instances."""
+
+    def __init__(self, module_instance):
+        self.module = module_instance
+
+
+class _WorkerModuleManager:  # pylint: disable=R0903
+    """Module manager stub available inside worker processes."""
+
+    def __init__(self, module_instances):
+        self.modules = {
+            name: _WorkerModuleHolder(inst)
+            for name, inst in module_instances.items()
+        }
+        self.descriptors = {}
+        self.runtime_modules = {}
+
+
+class _WorkerContext(Context):
+    """Rich context object for runtime workers."""
+
+
+def _build_worker_context(worker_spec, module_instances):
+    """Build a rich Context for worker module instances."""
+    context = _WorkerContext()
+    runtime_group = worker_spec.get("runtime_group", "unknown")
+    context.id = worker_spec.get("node_id", "unknown")
+    context.node_name = worker_spec.get("node_name", f"runtime_worker_{runtime_group}")
+    context.settings = worker_spec.get("settings", {})
+    context.url_prefix = worker_spec.get("url_prefix", "")
+    context.pylon_version = worker_spec.get("pylon_version", "unknown")
+    context.runtime_worker = True
+    context.runtime_group = runtime_group
+    context.event_manager = _WorkerEventManager()
+    context.slot_manager = None
+    context.module_manager = _WorkerModuleManager(module_instances)
+    return context
+
+
+def _bootstrap_tools_module(context):
+    """Make `import tools; tools.context` work inside workers."""
+    if "tools" not in sys.modules:
+        sys.modules["tools"] = types.ModuleType("tools")
+        sys.modules["tools"].__path__ = []
+    setattr(sys.modules["tools"], "context", context)
+    setattr(sys.modules["tools"], "log", log)
+
+
 def _build_worker_modules(worker_spec):
     modules = worker_spec.get("modules", [])
     module_specs = worker_spec.get("module_specs", {})
     runtime_group = worker_spec.get("runtime_group", "unknown")
-    context = SimpleNamespace(
+    # Pre-build a minimal context to instantiate modules; will be enriched below.
+    _proto_context = SimpleNamespace(
         id=worker_spec.get("node_id", "unknown"),
-        node_name=f"runtime_worker_{runtime_group}",
+        node_name=worker_spec.get("node_name", f"runtime_worker_{runtime_group}"),
+        settings=worker_spec.get("settings", {}),
+        url_prefix=worker_spec.get("url_prefix", ""),
         runtime_worker=True,
         runtime_group=runtime_group,
     )
@@ -103,12 +178,22 @@ def _build_worker_modules(worker_spec):
         )
         try:
             module_instances[module_name] = module_class(
-                context=context,
+                context=_proto_context,
                 descriptor=descriptor,
             )
         except:  # pylint: disable=W0702
             log.exception("Failed to instantiate worker module class: %s", module_name)
-    return module_instances, module_packages
+    # Now build the rich context and patch it into every module instance.
+    rich_context = _build_worker_context(worker_spec, module_instances)
+    _bootstrap_tools_module(rich_context)
+    for module_obj in module_instances.values():
+        if hasattr(module_obj, "context"):
+            try:
+                module_obj.context = rich_context
+            except:  # pylint: disable=W0702
+                pass
+    rich_context.module_manager = _WorkerModuleManager(module_instances)
+    return module_instances, module_packages, rich_context
 
 
 def _init_worker_modules(module_instances, module_order):
@@ -182,7 +267,7 @@ def run_worker():
     stop_event = threading.Event()
     worker_id = f"{worker_spec.get('node_id', 'unknown')}:{runtime_group}"
     _activate_import_paths(worker_spec)
-    module_instances, module_packages = _build_worker_modules(worker_spec)
+    module_instances, module_packages, worker_context = _build_worker_modules(worker_spec)
     initialized_modules = _init_worker_modules(module_instances, modules)
     route_app = flask.Flask(f"runtime_worker_{runtime_group}")
 

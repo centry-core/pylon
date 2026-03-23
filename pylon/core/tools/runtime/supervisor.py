@@ -65,6 +65,7 @@ class RuntimeSupervisor:  # pylint: disable=R0902
         module_specs = self._make_module_specs(group_data.get("modules", []))
         worker_spec = {
             "node_id": self.context.id,
+            "node_name": getattr(self.context, "node_name", self.context.id),
             "runtime_group": runtime_group,
             "runtime_mode": group_data.get("mode", "gevent"),
             "restart_policy": group_data.get("restart_policy", "always"),
@@ -73,6 +74,9 @@ class RuntimeSupervisor:  # pylint: disable=R0902
             "plugins_path": self._get_plugins_path(),
             "rpc_timeout_sec": float(self._runtime_settings().get("call_timeout_sec", 30.0)),
             "zmq": self._make_worker_zmq_config(),
+            "settings": self.context.settings,
+            "url_prefix": getattr(self.context, "url_prefix", ""),
+            "pylon_version": getattr(self.context, "pylon_version", "unknown"),
         }
         worker_env["PYLON_RUNTIME_WORKER_SPEC"] = json.dumps(worker_spec)
         return worker_env
