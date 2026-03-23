@@ -25,6 +25,7 @@ import types
 import signal
 import threading
 import importlib
+import traceback
 from types import SimpleNamespace
 
 import arbiter  # pylint: disable=E0401
@@ -144,6 +145,33 @@ def _deinit_worker_modules(module_instances, initialized_modules):
             log.exception("Worker module deinit failed: %s", module_name)
 
 
+def _success_envelope(*, result=None, response=None):
+    return {
+        "__runtime_envelope__": True,
+        "ok": True,
+        "result": result,
+        "response": response,
+    }
+
+
+def _error_envelope(exc, *, status=500):
+    message = str(exc) or exc.__class__.__name__
+    return {
+        "__runtime_envelope__": True,
+        "ok": False,
+        "error": {
+            "type": exc.__class__.__name__,
+            "message": message,
+            "traceback": traceback.format_exc(),
+        },
+        "response": {
+            "status": status,
+            "headers": [("Content-Type", "text/plain; charset=utf-8")],
+            "body": f"{exc.__class__.__name__}: {message}".encode(),
+        },
+    }
+
+
 def run_worker():
     """Runtime worker process entrypoint."""
     worker_spec = _load_worker_spec()
@@ -199,33 +227,34 @@ def run_worker():
         }
 
     def _module_call(module=None, method=None, args=None, kwargs=None, source=None):
-        _ = source
-        if module not in modules:
-            raise RuntimeError(f"Module is not assigned to this worker: {module}")
-        if args is None:
-            args = []
-        if kwargs is None:
-            kwargs = {}
-        if module in module_instances and hasattr(module_instances[module], method):
-            target = getattr(module_instances[module], method)
-            return target(*args, **kwargs)
-        if module in module_packages and hasattr(module_packages[module], method):
-            target = getattr(module_packages[module], method)
-            return target(*args, **kwargs)
-        # Transitional behavior: bridge module.method to existing RPC naming when available.
-        rpc_name = f"{module}_{method}"
         try:
-            return rpc_node.call_with_timeout(
+            _ = source
+            if module not in modules:
+                raise RuntimeError(f"Module is not assigned to this worker: {module}")
+            if args is None:
+                args = []
+            if kwargs is None:
+                kwargs = {}
+            if module in module_instances and hasattr(module_instances[module], method):
+                target = getattr(module_instances[module], method)
+                return _success_envelope(result=target(*args, **kwargs))
+            if module in module_packages and hasattr(module_packages[module], method):
+                target = getattr(module_packages[module], method)
+                return _success_envelope(result=target(*args, **kwargs))
+            rpc_name = f"{module}_{method}"
+            return _success_envelope(result=rpc_node.call_with_timeout(
                 rpc_name,
                 timeout=float(worker_spec.get("rpc_timeout_sec", 30.0)),
                 *args,
                 **kwargs,
-            )
+            ))
         except:  # pylint: disable=W0702
-            # Fallback for plugin module-level helper functions, if present.
-            module_pkg = importlib.import_module(f"plugins.{module}.module")
-            target = getattr(module_pkg, method)
-            return target(*args, **kwargs)
+            try:
+                module_pkg = importlib.import_module(f"plugins.{module}.module")
+                target = getattr(module_pkg, method)
+                return _success_envelope(result=target(*args, **kwargs))
+            except Exception as exc:  # pylint: disable=W0718
+                return _error_envelope(exc)
 
     def _route_call(  # pylint: disable=R0913
             module=None,
@@ -235,40 +264,43 @@ def run_worker():
             request_data=None,
             source=None,
         ):
-        _ = source
-        if module not in modules:
-            raise RuntimeError(f"Module is not assigned to this worker: {module}")
-        if request_data is None:
-            request_data = {}
-        target_pkg = importlib.import_module(callable_module)
-        target_callable = getattr(target_pkg, callable_name)
-        route_kwargs = request_data.get("route_kwargs", {})
-        method = request_data.get("method", "GET")
-        path = request_data.get("path", "/")
-        query_string = request_data.get("query_string", b"")
-        headers = request_data.get("headers", {})
-        body = request_data.get("body", b"")
-        content_type = request_data.get("content_type", None)
-        with route_app.test_request_context(
-                path=path,
-                method=method,
-                query_string=query_string,
-                headers=headers,
-                data=body,
-                content_type=content_type,
-        ):
-            if module_routes:
-                if module not in module_instances:
-                    raise RuntimeError(f"No module instance available in worker: {module}")
-                view_rv = target_callable(module_instances[module], **route_kwargs)
-            else:
-                view_rv = target_callable(**route_kwargs)
-            response = flask.make_response(view_rv)
-            return {
-                "status": response.status_code,
-                "headers": list(response.headers.items()),
-                "body": response.get_data(),
-            }
+        try:
+            _ = source
+            if module not in modules:
+                raise RuntimeError(f"Module is not assigned to this worker: {module}")
+            if request_data is None:
+                request_data = {}
+            target_pkg = importlib.import_module(callable_module)
+            target_callable = getattr(target_pkg, callable_name)
+            route_kwargs = request_data.get("route_kwargs", {})
+            method = request_data.get("method", "GET")
+            path = request_data.get("path", "/")
+            query_string = request_data.get("query_string", b"")
+            headers = request_data.get("headers", {})
+            body = request_data.get("body", b"")
+            content_type = request_data.get("content_type", None)
+            with route_app.test_request_context(
+                    path=path,
+                    method=method,
+                    query_string=query_string,
+                    headers=headers,
+                    data=body,
+                    content_type=content_type,
+            ):
+                if module_routes:
+                    if module not in module_instances:
+                        raise RuntimeError(f"No module instance available in worker: {module}")
+                    view_rv = target_callable(module_instances[module], **route_kwargs)
+                else:
+                    view_rv = target_callable(**route_kwargs)
+                response = flask.make_response(view_rv)
+                return _success_envelope(response={
+                    "status": response.status_code,
+                    "headers": list(response.headers.items()),
+                    "body": response.get_data(),
+                })
+        except Exception as exc:  # pylint: disable=W0718
+            return _error_envelope(exc)
 
     def _event_call(
             module=None,
@@ -278,16 +310,19 @@ def run_worker():
             event_payload=None,
             source=None,
         ):
-        _ = source
-        if module not in modules:
-            raise RuntimeError(f"Module is not assigned to this worker: {module}")
-        target_pkg = importlib.import_module(callable_module)
-        target_callable = getattr(target_pkg, callable_name)
-        if module not in module_instances:
-            raise RuntimeError(f"No module instance available in worker: {module}")
-        module_obj = module_instances[module]
-        context_obj = getattr(module_obj, "context", None)
-        return target_callable(module_obj, context_obj, event_name, event_payload)
+        try:
+            _ = source
+            if module not in modules:
+                raise RuntimeError(f"Module is not assigned to this worker: {module}")
+            target_pkg = importlib.import_module(callable_module)
+            target_callable = getattr(target_pkg, callable_name)
+            if module not in module_instances:
+                raise RuntimeError(f"No module instance available in worker: {module}")
+            module_obj = module_instances[module]
+            context_obj = getattr(module_obj, "context", None)
+            return _success_envelope(result=target_callable(module_obj, context_obj, event_name, event_payload))
+        except Exception as exc:  # pylint: disable=W0718
+            return _error_envelope(exc)
 
     def _slot_call(
             module=None,
@@ -297,16 +332,19 @@ def run_worker():
             payload=None,
             source=None,
         ):
-        _ = source
-        if module not in modules:
-            raise RuntimeError(f"Module is not assigned to this worker: {module}")
-        target_pkg = importlib.import_module(callable_module)
-        target_callable = getattr(target_pkg, callable_name)
-        if module not in module_instances:
-            raise RuntimeError(f"No module instance available in worker: {module}")
-        module_obj = module_instances[module]
-        context_obj = getattr(module_obj, "context", None)
-        return target_callable(module_obj, context_obj, slot, payload)
+        try:
+            _ = source
+            if module not in modules:
+                raise RuntimeError(f"Module is not assigned to this worker: {module}")
+            target_pkg = importlib.import_module(callable_module)
+            target_callable = getattr(target_pkg, callable_name)
+            if module not in module_instances:
+                raise RuntimeError(f"No module instance available in worker: {module}")
+            module_obj = module_instances[module]
+            context_obj = getattr(module_obj, "context", None)
+            return _success_envelope(result=target_callable(module_obj, context_obj, slot, payload))
+        except Exception as exc:  # pylint: disable=W0718
+            return _error_envelope(exc)
 
     def _api_call(  # pylint: disable=R0913
             module=None,
@@ -317,44 +355,47 @@ def run_worker():
             request_data=None,
             source=None,
         ):
-        _ = source
-        if module not in modules:
-            raise RuntimeError(f"Module is not assigned to this worker: {module}")
-        if api_kwargs is None:
-            api_kwargs = {}
-        if request_data is None:
-            request_data = {}
-        module_pkg = importlib.import_module(
-            f"plugins.{module}.api.{api_version}.{resource_name}"
-        )
-        resource_cls = getattr(module_pkg, "API")
-        method = request_data.get("method", "GET")
-        path = request_data.get("path", "/")
-        query_string = request_data.get("query_string", b"")
-        headers = request_data.get("headers", {})
-        body = request_data.get("body", b"")
-        content_type = request_data.get("content_type", None)
-        module_obj = module_instances.get(module, None)
         try:
-            resource_obj = resource_cls(module=module_obj)
-        except TypeError:
-            resource_obj = resource_cls()
-        with route_app.test_request_context(
-                path=path,
-                method=method,
-                query_string=query_string,
-                headers=headers,
-                data=body,
-                content_type=content_type,
-        ):
-            handler = getattr(resource_obj, method_name)
-            view_rv = handler(**api_kwargs)
-            response = flask.make_response(view_rv)
-            return {
-                "status": response.status_code,
-                "headers": list(response.headers.items()),
-                "body": response.get_data(),
-            }
+            _ = source
+            if module not in modules:
+                raise RuntimeError(f"Module is not assigned to this worker: {module}")
+            if api_kwargs is None:
+                api_kwargs = {}
+            if request_data is None:
+                request_data = {}
+            module_pkg = importlib.import_module(
+                f"plugins.{module}.api.{api_version}.{resource_name}"
+            )
+            resource_cls = getattr(module_pkg, "API")
+            method = request_data.get("method", "GET")
+            path = request_data.get("path", "/")
+            query_string = request_data.get("query_string", b"")
+            headers = request_data.get("headers", {})
+            body = request_data.get("body", b"")
+            content_type = request_data.get("content_type", None)
+            module_obj = module_instances.get(module, None)
+            try:
+                resource_obj = resource_cls(module=module_obj)
+            except TypeError:
+                resource_obj = resource_cls()
+            with route_app.test_request_context(
+                    path=path,
+                    method=method,
+                    query_string=query_string,
+                    headers=headers,
+                    data=body,
+                    content_type=content_type,
+            ):
+                handler = getattr(resource_obj, method_name)
+                view_rv = handler(**api_kwargs)
+                response = flask.make_response(view_rv)
+                return _success_envelope(response={
+                    "status": response.status_code,
+                    "headers": list(response.headers.items()),
+                    "body": response.get_data(),
+                })
+        except Exception as exc:  # pylint: disable=W0718
+            return _error_envelope(exc)
 
     event_node.start()
     rpc_node.start()

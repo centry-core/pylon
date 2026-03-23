@@ -189,6 +189,37 @@ class RuntimeDispatcher:  # pylint: disable=R0903
             "route_kwargs": dict(route_kwargs),
         }
 
+    @staticmethod
+    def _is_runtime_envelope(value):
+        return isinstance(value, dict) and value.get("__runtime_envelope__", False) is True
+
+    def _unwrap_result_envelope(self, value):
+        if not self._is_runtime_envelope(value):
+            return value
+        if value.get("ok", False):
+            return value.get("result", None)
+        error_data = value.get("error", {})
+        error_type = error_data.get("type", "RuntimeError")
+        error_message = error_data.get("message", "Runtime call failed")
+        raise RuntimeError(f"{error_type}: {error_message}")
+
+    def _unwrap_response_envelope(self, value):
+        if not self._is_runtime_envelope(value):
+            return value
+        if value.get("ok", False):
+            return value.get("response", {})
+        error_data = value.get("error", {})
+        fallback_response = value.get("response", {})
+        if fallback_response:
+            return fallback_response
+        error_type = error_data.get("type", "RuntimeError")
+        error_message = error_data.get("message", "Runtime request failed")
+        return {
+            "status": 502,
+            "headers": [("Content-Type", "text/plain; charset=utf-8")],
+            "body": f"{error_type}: {error_message}".encode(),
+        }
+
     def make_api_resource(self, module_name, api_version, resource_name):
         dispatcher = self
 
@@ -265,6 +296,7 @@ class RuntimeDispatcher:  # pylint: disable=R0903
             module_routes=module_routes,
             request_data=request_data,
         )
+        response_data = self._unwrap_response_envelope(response_data)
         view_rv = (
             response_data.get("body", b""),
             response_data.get("status", 500),
@@ -291,6 +323,7 @@ class RuntimeDispatcher:  # pylint: disable=R0903
             api_kwargs=api_kwargs,
             request_data=request_data,
         )
+        response_data = self._unwrap_response_envelope(response_data)
         view_rv = (
             response_data.get("body", b""),
             response_data.get("status", 500),
@@ -335,24 +368,26 @@ class RuntimeDispatcher:  # pylint: disable=R0903
     def call_event(self, module_name, callable_module, callable_name, event_name, event_payload):
         if not hasattr(self.context, "runtime_supervisor"):
             raise RuntimeError("Runtime supervisor is not initialized")
-        return self.context.runtime_supervisor.call_event(
+        result = self.context.runtime_supervisor.call_event(
             module_name=module_name,
             callable_module=callable_module,
             callable_name=callable_name,
             event_name=event_name,
             event_payload=event_payload,
         )
+        return self._unwrap_result_envelope(result)
 
     def call_slot(self, module_name, callable_module, callable_name, slot, payload=None):
         if not hasattr(self.context, "runtime_supervisor"):
             raise RuntimeError("Runtime supervisor is not initialized")
-        return self.context.runtime_supervisor.call_slot(
+        result = self.context.runtime_supervisor.call_slot(
             module_name=module_name,
             callable_module=callable_module,
             callable_name=callable_name,
             slot=slot,
             payload=payload,
         )
+        return self._unwrap_result_envelope(result)
 
     def call_module_method(self, module_name, method_name, *args, **kwargs):
         if not self.is_remote_module(module_name):
@@ -360,9 +395,10 @@ class RuntimeDispatcher:  # pylint: disable=R0903
             return getattr(target, method_name)(*args, **kwargs)
         if not hasattr(self.context, "runtime_supervisor"):
             raise RuntimeError("Runtime supervisor is not initialized")
-        return self.context.runtime_supervisor.call_module_method(
+        result = self.context.runtime_supervisor.call_module_method(
             module_name,
             method_name,
             *args,
             **kwargs,
         )
+        return self._unwrap_result_envelope(result)

@@ -81,6 +81,35 @@ class FakeSupervisor:
         return "slot-ok"
 
 
+class FakeFailingSupervisor(FakeSupervisor):
+    def call_route(self, **kwargs):
+        self.route_calls.append(kwargs)
+        return {
+            "__runtime_envelope__": True,
+            "ok": False,
+            "error": {
+                "type": "ValueError",
+                "message": "route exploded",
+            },
+            "response": {
+                "status": 503,
+                "headers": [("Content-Type", "text/plain")],
+                "body": b"ValueError: route exploded",
+            },
+        }
+
+    def call_event(self, **kwargs):
+        self.event_calls.append(kwargs)
+        return {
+            "__runtime_envelope__": True,
+            "ok": False,
+            "error": {
+                "type": "RuntimeError",
+                "message": "event exploded",
+            },
+        }
+
+
 def _make_context():
     module_manager = SimpleNamespace(
         runtime_modules={
@@ -107,6 +136,12 @@ def _make_context():
         module_manager=module_manager,
         runtime_supervisor=FakeSupervisor(),
     )
+
+
+def _make_failing_context():
+    context = _make_context()
+    context.runtime_supervisor = FakeFailingSupervisor()
+    return context
 
 
 def test_remote_route_proxy_forwards_request_context_and_route_kwargs():
@@ -191,3 +226,39 @@ def test_remote_event_and_slot_proxies_forward_calls():
     assert slot_result == "slot-ok"
     assert context.runtime_supervisor.event_calls[0]["event_name"] == "build.done"
     assert context.runtime_supervisor.slot_calls[0]["slot"] == "sidebar"
+
+
+def test_remote_route_proxy_uses_worker_error_response_envelope():
+    context = _make_failing_context()
+    dispatcher = RuntimeDispatcher(context)
+    app = flask.Flask(__name__)
+
+    def route_handler(module):
+        _ = module
+        return "local"
+
+    proxy = dispatcher.make_route_view("remote_module", route_handler, module_routes=True)
+
+    with app.test_request_context("/plugins/demo", method="GET"):
+        response = proxy()
+
+    assert response.status_code == 503
+    assert response.get_data() == b"ValueError: route exploded"
+
+
+def test_remote_event_proxy_raises_runtime_error_from_envelope():
+    context = _make_failing_context()
+    dispatcher = RuntimeDispatcher(context)
+
+    def event_handler(module, ctx, event_name, payload):
+        _ = module, ctx, event_name, payload
+        return "local-event"
+
+    event_proxy = dispatcher.make_event_listener("remote_module", event_handler)
+
+    try:
+        event_proxy(context, "build.failed", {"ok": False})
+    except RuntimeError as exc:
+        assert str(exc) == "RuntimeError: event exploded"
+    else:
+        raise AssertionError("RuntimeError was not raised")
