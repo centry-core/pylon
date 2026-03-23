@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # coding=utf-8
+# pyright: reportMissingImports=false
 
 import sys
 import types
@@ -48,8 +49,19 @@ def _install_web_stubs():
         sys.modules["flask_restful"] = flask_restful_mod
 
 
+def _install_arbiter_stubs():
+    if "arbiter" in sys.modules:
+        return
+    arbiter_mod = types.ModuleType("arbiter")
+    arbiter_mod.ZeroMQEventNode = object
+    arbiter_mod.RpcNode = object
+    arbiter_mod.MockEventNode = object
+    sys.modules["arbiter"] = arbiter_mod
+
+
 _install_centry_stubs()
 _install_web_stubs()
+_install_arbiter_stubs()
 
 from pylon.core.tools.runtime.dispatcher import RuntimeDispatcher
 
