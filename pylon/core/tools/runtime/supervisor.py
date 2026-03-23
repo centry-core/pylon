@@ -62,16 +62,50 @@ class RuntimeSupervisor:  # pylint: disable=R0902
 
     def _worker_env(self, runtime_group, group_data):
         worker_env = os.environ.copy()
+        module_specs = self._make_module_specs(group_data.get("modules", []))
         worker_spec = {
             "node_id": self.context.id,
             "runtime_group": runtime_group,
             "runtime_mode": group_data.get("mode", "gevent"),
             "restart_policy": group_data.get("restart_policy", "always"),
             "modules": group_data.get("modules", []),
+            "module_specs": module_specs,
+            "plugins_path": self._get_plugins_path(),
+            "rpc_timeout_sec": float(self._runtime_settings().get("call_timeout_sec", 30.0)),
             "zmq": self._make_worker_zmq_config(),
         }
         worker_env["PYLON_RUNTIME_WORKER_SPEC"] = json.dumps(worker_spec)
         return worker_env
+
+    def _get_plugins_path(self):
+        modules_settings = self.context.settings.get("modules", {})
+        plugins_provider = modules_settings.get("plugins", {}).get("provider", {})
+        if plugins_provider.get("type", "") != "folder":
+            return None
+        return plugins_provider.get("path", None)
+
+    def _make_module_specs(self, module_names):
+        result = {}
+        module_manager = self.context.module_manager
+        for module_name in module_names:
+            if module_name not in module_manager.descriptors:
+                continue
+            descriptor = module_manager.descriptors[module_name]
+            loader_path = None
+            try:
+                loader_path = descriptor.loader.get_local_path()
+            except:  # pylint: disable=W0702
+                loader_path = None
+            result[module_name] = {
+                "requirements_path": descriptor.requirements_path,
+                "loader_path": loader_path,
+                "metadata": {
+                    "runtime_group": descriptor.metadata.get("runtime_group", "default"),
+                    "runtime_mode": descriptor.metadata.get("runtime_mode", "gevent"),
+                    "restart_policy": descriptor.metadata.get("restart_policy", "always"),
+                },
+            }
+        return result
 
     @staticmethod
     def _normalize_bind_to_connect(addr):

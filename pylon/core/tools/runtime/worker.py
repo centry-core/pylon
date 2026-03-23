@@ -19,9 +19,12 @@
 
 import os
 import json
+import sys
+import types
 import signal
 import threading
 import importlib
+from types import SimpleNamespace
 
 import arbiter  # pylint: disable=E0401
 
@@ -45,6 +48,65 @@ def _make_event_node(zmq_config):
     )
 
 
+def _activate_import_paths(worker_spec):
+    plugins_path = worker_spec.get("plugins_path", None)
+    module_specs = worker_spec.get("module_specs", {})
+    if plugins_path and os.path.isdir(plugins_path):
+        if "plugins" not in sys.modules:
+            sys.modules["plugins"] = types.ModuleType("plugins")
+            sys.modules["plugins"].__path__ = []
+        if plugins_path not in sys.modules["plugins"].__path__:
+            sys.modules["plugins"].__path__.append(plugins_path)
+    for module_name in worker_spec.get("modules", []):
+        spec = module_specs.get(module_name, {})
+        requirements_path = spec.get("requirements_path", None)
+        loader_path = spec.get("loader_path", None)
+        if requirements_path and requirements_path not in sys.path and os.path.isdir(requirements_path):
+            sys.path.insert(0, requirements_path)
+        if loader_path:
+            loader_parent = os.path.dirname(loader_path)
+            if loader_parent and loader_parent not in sys.path and os.path.isdir(loader_parent):
+                sys.path.insert(0, loader_parent)
+
+
+def _build_worker_modules(worker_spec):
+    modules = worker_spec.get("modules", [])
+    module_specs = worker_spec.get("module_specs", {})
+    runtime_group = worker_spec.get("runtime_group", "unknown")
+    context = SimpleNamespace(
+        id=worker_spec.get("node_id", "unknown"),
+        node_name=f"runtime_worker_{runtime_group}",
+        runtime_worker=True,
+        runtime_group=runtime_group,
+    )
+    module_instances = {}
+    module_packages = {}
+    for module_name in modules:
+        try:
+            module_pkg = importlib.import_module(f"plugins.{module_name}.module")
+            module_packages[module_name] = module_pkg
+        except:  # pylint: disable=W0702
+            log.exception("Failed to import worker module package: %s", module_name)
+            continue
+        module_class = getattr(module_pkg, "Module", None)
+        if module_class is None:
+            continue
+        descriptor = SimpleNamespace(
+            name=module_name,
+            metadata=module_specs.get(module_name, {}).get("metadata", {}),
+            state={},
+            config={},
+        )
+        try:
+            module_instances[module_name] = module_class(
+                context=context,
+                descriptor=descriptor,
+            )
+        except:  # pylint: disable=W0702
+            log.exception("Failed to instantiate worker module class: %s", module_name)
+    return module_instances, module_packages
+
+
 def run_worker():
     """Runtime worker process entrypoint."""
     worker_spec = _load_worker_spec()
@@ -53,6 +115,8 @@ def run_worker():
     modules = worker_spec.get("modules", [])
     stop_event = threading.Event()
     worker_id = f"{worker_spec.get('node_id', 'unknown')}:{runtime_group}"
+    _activate_import_paths(worker_spec)
+    module_instances, module_packages = _build_worker_modules(worker_spec)
 
     def _sigterm_handler(_signal_num, _stack_frame):
         stop_event.set()
@@ -101,6 +165,12 @@ def run_worker():
             args = []
         if kwargs is None:
             kwargs = {}
+        if module in module_instances and hasattr(module_instances[module], method):
+            target = getattr(module_instances[module], method)
+            return target(*args, **kwargs)
+        if module in module_packages and hasattr(module_packages[module], method):
+            target = getattr(module_packages[module], method)
+            return target(*args, **kwargs)
         # Transitional behavior: bridge module.method to existing RPC naming when available.
         rpc_name = f"{module}_{method}"
         try:
