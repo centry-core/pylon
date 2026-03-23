@@ -2,6 +2,10 @@
 
 Plugin based galloper core
 
+## Runtime Process Mode Migration
+
+See the migration and rollout guide: `docs/runtime-process-migration.md`
+
 To run pylon `PYLON_CONFIG_SEED` (or legacy `CORE_CONFIG_SEED`) needs to be specified in env
 in format `file:/path/to/config.yml`
 
