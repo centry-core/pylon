@@ -74,7 +74,7 @@ def init_context(context):
             if not health_log:
                 context.server_log_filter.filter_strings.append(f"GET /{endpoint}")
     #
-    if context.web_runtime == "gevent":
+    if context.web_runtime == "gevent" and context.server_mode == "web":
         early_run_server(context)
 
 
@@ -108,20 +108,27 @@ def restart():
     """ Stop server (will be restarted by docker/runtime) """
     from tools import context  # pylint: disable = E0401,C0415
     #
+    restart_method = context.settings.get("server", {}).get("restart_method", None)
+    if restart_method is None:
+        if context.web_runtime == "gevent":
+            restart_method = "stop_event"
+        else:
+            restart_method = "subprocess"
+    #
     pylon_pid = os.getpid()
     if context.runtime_init == "dumb-init":
         pylon_pid = 1
     #
-    restart_method = context.settings.get("server", {}).get("restart_method", "subprocess")
-    #
     log.info("Stopping for a restart (pid = %s, method = %s)", pylon_pid, restart_method)
     #
-    if restart_method == "subprocess":
+    if restart_method == "stop_event":
+        context.stop_event.set()
+    elif restart_method == "subprocess":
         subprocess.Popen(  # pylint: disable=R1732
             ["/bin/bash", "-c", f"bash -c 'sleep 1; kill {pylon_pid}' &"]
         )
-    else:
+    else:  # signal
         if context.web_runtime == "gevent":
-            context.stop_event.set()
+            context.stop_event.set()  # Act as in stop_event
         else:
             os.kill(pylon_pid, signal.SIGTERM)

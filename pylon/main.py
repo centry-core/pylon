@@ -82,6 +82,7 @@ from pylon.core.tools import external_routing
 from pylon.core.tools import exposure
 from pylon.core.tools import profiling
 from pylon.core.tools import manager
+from pylon.core.tools import process
 
 from pylon.core.tools.dict import recursive_merge
 from pylon.core.tools.signal import signal_sigterm
@@ -209,6 +210,10 @@ def main():  # pylint: disable=R0912,R0914,R0915
     # Save profiling settings
     context.profiling = context.settings.get("system", {}).get("profiling", {}).copy()
     #
+    # Phase: subpylons
+    #
+    process.start_subpylons(context)
+    #
     # Phase: core entity instances
     #
     # Make AppManager instance
@@ -260,9 +265,14 @@ def main():  # pylint: disable=R0912,R0914,R0915
     #
     # Enable profiling: init
     profiling.profiling_start(context, "init")
+    # Modules can clear flag in init and set it in pylon_modules_initialized handler after some async work to delay server start until they are ready
+    context.can_exit_init_stage = threading.Event()
+    context.can_exit_init_stage.set()
     # Load and initialize modules
     context.module_manager.init_modules()
     context.event_manager.fire_event("pylon_modules_initialized", context.id)
+    # Wait for async module initialization if needed
+    context.can_exit_init_stage.wait()
     # Print profile stats: init
     profiling.profiling_stop(context, "init")
     #
@@ -300,6 +310,8 @@ def main():  # pylint: disable=R0912,R0914,R0915
         # Print profile stats: deinit
         profiling.profiling_stop(context, "deinit")
         # Leave mesh
+        # Stop subpylons
+        process.stop_subpylons(context)
         # De-initialize DB support
         db_support.deinit(context)
     #
